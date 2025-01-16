@@ -332,6 +332,18 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::MUL, MVT::i64, Custom);
   }
 
+  // *PBH*: Begin added
+  if (!Subtarget.hasVendorXKeysomMul()) {
+    setOperationAction(ISD::MUL, XLenVT, Expand); // If the ISD::MUL (mul) instruction is not available, expand it.
+  }
+  if (!Subtarget.hasVendorXKeysomMulh()) {
+    setOperationAction(ISD::MULHS, XLenVT, Expand); // If the ISD::MULHS (mulh) instruction is not available, expand it.
+  }
+  if (!Subtarget.hasVendorXKeysomMulhu()) {
+    setOperationAction(ISD::MULHU, XLenVT, Expand); // If the ISD::MULHU (mulhu) instruction is not available, it must be expanded.
+  }
+  // *PBH*: End added
+
   if (!Subtarget.hasStdExtM()) {
     setOperationAction({ISD::SDIV, ISD::UDIV, ISD::SREM, ISD::UREM}, XLenVT,
                        Expand);
@@ -339,6 +351,25 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
     setOperationAction({ISD::SDIV, ISD::UDIV, ISD::UREM},
                        {MVT::i8, MVT::i16, MVT::i32}, Custom);
   }
+
+  // *PBH*: Begin added
+  if (!Subtarget.hasVendorXKeysomDiv()) {
+    // If the ISD::SDIV (div) instruction is not available, expand it.
+    setOperationAction(ISD::SDIV, XLenVT, Expand);
+  }
+  if (!Subtarget.hasVendorXKeysomDivu()) {
+    // If the ISD::UDIV (divu) instruction is not available, expand it.
+    setOperationAction(ISD::UDIV, XLenVT, Expand);
+  }
+  if (!Subtarget.hasVendorXKeysomRem()) {
+    // If the ISD::SREM (rem) instruction is not available, expand it.
+    setOperationAction(ISD::SREM, XLenVT, Expand);
+  }
+  if (!Subtarget.hasVendorXKeysomRemu()) {
+    // If the ISD::UREM (remu) instruction is not available, expand it.
+    setOperationAction(ISD::UREM, XLenVT, Expand);
+  }
+  // *PBH*: End added
 
   setOperationAction(
       {ISD::SDIVREM, ISD::UDIVREM, ISD::SMUL_LOHI, ISD::UMUL_LOHI}, XLenVT,
@@ -13023,6 +13054,12 @@ void RISCVTargetLowering::ReplaceNodeResults(SDNode *N,
     // This multiply needs to be expanded, try to use MULHSU+MUL if possible.
     if (Size > XLen) {
       assert(Size == (XLen * 2) && "Unexpected custom legalisation");
+      // *PBH*: Begin added.
+      // We need to have the MUL and MULHSU instructions available for this optimization to be possible.
+      if (!Subtarget.hasVendorXKeysomMul() || !Subtarget.hasVendorXKeysomMulhsu()) {
+        return;
+      }
+      // *PBH*: End added.
       SDValue LHS = N->getOperand(0);
       SDValue RHS = N->getOperand(1);
       APInt HighMask = APInt::getHighBitsSet(Size, XLen);

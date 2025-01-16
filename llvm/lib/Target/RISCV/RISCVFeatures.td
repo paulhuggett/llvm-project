@@ -1020,6 +1020,34 @@ def HasStdExtSmctrOrSsctr : Predicate<"Subtarget->hasStdExtSmctrOrSsctr()">,
 // Vendor extensions
 //===----------------------------------------------------------------------===//
 
+// *PBH*: Added
+// Keysom Extensions
+
+def FeatureVendorXKeysomMul : RISCVExtension<1, 0, "Keysom mul Instruction", []>;
+def HasVendorXKeysomMul : Predicate<"Subtarget->hasVendorXKeysomMul()">, AssemblerPredicate<(all_of FeatureVendorXKeysomMul), "'XKeysomMul' (Keysom mul Instruction)">;
+
+def FeatureVendorXKeysomMulh : RISCVExtension<1, 0, "Keysom mulh Instruction", []>;
+def HasVendorXKeysomMulh : Predicate<"Subtarget->hasVendorXKeysomMulh()">, AssemblerPredicate<(all_of FeatureVendorXKeysomMulh), "'XKeysomMulh' (Keysom mulh Instruction)">;
+
+def FeatureVendorXKeysomMulhsu : RISCVExtension<1, 0, "Keysom mulhsu Instruction", []>;
+def HasVendorXKeysomMulhsu : Predicate<"Subtarget->hasVendorXKeysomMulhsu()">, AssemblerPredicate<(all_of FeatureVendorXKeysomMulhsu), "'XKeysomMulhsu' (Keysom mulhsu Instruction)">;
+
+def FeatureVendorXKeysomMulhu : RISCVExtension<1, 0, "Keysom mulhu Instruction", []>;
+def HasVendorXKeysomMulhu : Predicate<"Subtarget->hasVendorXKeysomMulhu()">, AssemblerPredicate<(all_of FeatureVendorXKeysomMulhu), "'XKeysomMulhu' (Keysom mulhu Instruction)">;
+
+def FeatureVendorXKeysomDiv : RISCVExtension<1, 0, "Keysom div Instruction", []>;
+def HasVendorXKeysomDiv : Predicate<"Subtarget->hasVendorXKeysomDiv()">, AssemblerPredicate<(all_of FeatureVendorXKeysomDiv), "'XKeysomDiv' (Keysom div Instruction)">;
+
+def FeatureVendorXKeysomDivu : RISCVExtension<1, 0, "Keysom divu Instruction", []>;
+def HasVendorXKeysomDivu : Predicate<"Subtarget->hasVendorXKeysomDivu()">, AssemblerPredicate<(all_of FeatureVendorXKeysomDivu), "'XKeysomDivu' (Keysom divu Instruction)">;
+
+def FeatureVendorXKeysomRem : RISCVExtension<1, 0, "Keysom rem Instruction", []>;
+def HasVendorXKeysomRem : Predicate<"Subtarget->hasVendorXKeysomRem()">, AssemblerPredicate<(all_of FeatureVendorXKeysomRem), "'XKeysomRem' (Keysom rem Instruction)">;
+
+def FeatureVendorXKeysomRemu : RISCVExtension<1, 0, "Keysom remu Instruction", []>;
+def HasVendorXKeysomRemu : Predicate<"Subtarget->hasVendorXKeysomRemu()">, AssemblerPredicate<(all_of FeatureVendorXKeysomRemu), "'XKeysomRemu' (Keysom remu Instruction)">;
+// *PBH*: End added.
+
 // Ventana Extenions
 
 def FeatureVendorXVentanaCondOps
