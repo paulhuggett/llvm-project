@@ -1020,7 +1020,7 @@ def HasStdExtSmctrOrSsctr : Predicate<"Subtarget->hasStdExtSmctrOrSsctr()">,
 // Vendor extensions
 //===----------------------------------------------------------------------===//
 
-// *PBH*: Added
+// *PBH*: Begin Added
 // Keysom Extensions
 
 def FeatureVendorXKeysomMul : RISCVExtension<1, 0, "Keysom mul Instruction", []>;
@@ -1046,6 +1046,12 @@ def HasVendorXKeysomRem : Predicate<"Subtarget->hasVendorXKeysomRem()">, Assembl
 
 def FeatureVendorXKeysomRemu : RISCVExtension<1, 0, "Keysom remu Instruction", []>;
 def HasVendorXKeysomRemu : Predicate<"Subtarget->hasVendorXKeysomRemu()">, AssemblerPredicate<(all_of FeatureVendorXKeysomRemu), "'XKeysomRemu' (Keysom remu Instruction)">;
+
+// Atomic Extension
+
+def FeatureVendorXKeysomAmoaddw : RISCVExtension<1, 0, "Keysom amoadd.w Instruction", []>;
+def HasVendorXKeysomAmoaddw : Predicate<"Subtarget->hasVendorXKeysomAmoaddw()">, AssemblerPredicate<(all_of FeatureVendorXKeysomAmoaddw), "'XKeysomAmoaddw' (Keysom amoadd.w Instruction)">;
+
 // *PBH*: End added.
 
 // Ventana Extenions

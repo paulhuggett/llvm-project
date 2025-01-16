@@ -1489,6 +1489,12 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
   if (Subtarget.hasStdExtA())
     setOperationAction(ISD::ATOMIC_LOAD_SUB, XLenVT, Expand);
 
+  // *PBH*: Begin added
+  if (!Subtarget.hasVendorXKeysomAmoaddw()) {
+    setOperationAction(ISD::ATOMIC_LOAD_ADD, XLenVT, Expand);
+  }
+  // *PBH**: End added
+
   if (Subtarget.hasForcedAtomics()) {
     // Force __sync libcalls to be emitted for atomic rmw/cas operations.
     setOperationAction(
