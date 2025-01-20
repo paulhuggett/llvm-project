@@ -1023,34 +1023,44 @@ def HasStdExtSmctrOrSsctr : Predicate<"Subtarget->hasStdExtSmctrOrSsctr()">,
 // *PBH*: Begin Added
 // Keysom Extensions
 
-def FeatureVendorXKeysomMul : RISCVExtension<1, 0, "Keysom mul Instruction", []>;
-def HasVendorXKeysomMul : Predicate<"Subtarget->hasVendorXKeysomMul()">, AssemblerPredicate<(all_of FeatureVendorXKeysomMul), "'XKeysomMul' (Keysom mul Instruction)">;
+class KeysomExtension<string MnemonicStr> : RISCVExtension<1, 0, "Keysom disable " # Mnemonic # " Instruction", []> {
+  string Mnemonic = MnemonicStr;
+}
+multiclass KeysomPredicates<KeysomExtension Ext> {
+  defvar Instr = Ext.Mnemonic;
+  def HasVendorXKeysomNo#NAME : Predicate<"Subtarget->hasVendorXKeysomNo" # Instr # "()">, AssemblerPredicate<(all_of Ext), "'XKeysomNo" # Instr # "' (Keysom disable " # Instr # " Instruction)">;
+  def HasVendorXKeysom#NAME : Predicate<"!Subtarget->hasVendorXKeysomNo" # Instr # "()">;
+}
 
-def FeatureVendorXKeysomMulh : RISCVExtension<1, 0, "Keysom mulh Instruction", []>;
-def HasVendorXKeysomMulh : Predicate<"Subtarget->hasVendorXKeysomMulh()">, AssemblerPredicate<(all_of FeatureVendorXKeysomMulh), "'XKeysomMulh' (Keysom mulh Instruction)">;
+// M/Zmmul Extension
+def FeatureVendorXKeysomNoMul : KeysomExtension<"Mul">;
+defm Mul : KeysomPredicates<FeatureVendorXKeysomNoMul>;
 
-def FeatureVendorXKeysomMulhsu : RISCVExtension<1, 0, "Keysom mulhsu Instruction", []>;
-def HasVendorXKeysomMulhsu : Predicate<"Subtarget->hasVendorXKeysomMulhsu()">, AssemblerPredicate<(all_of FeatureVendorXKeysomMulhsu), "'XKeysomMulhsu' (Keysom mulhsu Instruction)">;
+def FeatureVendorXKeysomNoMulh : KeysomExtension<"Mulh">;
+defm Mulh : KeysomPredicates<FeatureVendorXKeysomNoMulh>;
 
-def FeatureVendorXKeysomMulhu : RISCVExtension<1, 0, "Keysom mulhu Instruction", []>;
-def HasVendorXKeysomMulhu : Predicate<"Subtarget->hasVendorXKeysomMulhu()">, AssemblerPredicate<(all_of FeatureVendorXKeysomMulhu), "'XKeysomMulhu' (Keysom mulhu Instruction)">;
+def FeatureVendorXKeysomNoMulhsu : KeysomExtension<"Mulhsu">;
+defm Mulhsu : KeysomPredicates<FeatureVendorXKeysomNoMulhsu>;
 
-def FeatureVendorXKeysomDiv : RISCVExtension<1, 0, "Keysom div Instruction", []>;
-def HasVendorXKeysomDiv : Predicate<"Subtarget->hasVendorXKeysomDiv()">, AssemblerPredicate<(all_of FeatureVendorXKeysomDiv), "'XKeysomDiv' (Keysom div Instruction)">;
+def FeatureVendorXKeysomNoMulhu : KeysomExtension<"Mulhu">;
+defm Mulhu : KeysomPredicates<FeatureVendorXKeysomNoMulhu>;
 
-def FeatureVendorXKeysomDivu : RISCVExtension<1, 0, "Keysom divu Instruction", []>;
-def HasVendorXKeysomDivu : Predicate<"Subtarget->hasVendorXKeysomDivu()">, AssemblerPredicate<(all_of FeatureVendorXKeysomDivu), "'XKeysomDivu' (Keysom divu Instruction)">;
+// M (Multiply and Divide) Extension
+def FeatureVendorXKeysomNoDiv : KeysomExtension<"Div">;
+defm Div : KeysomPredicates<FeatureVendorXKeysomNoDiv>;
 
-def FeatureVendorXKeysomRem : RISCVExtension<1, 0, "Keysom rem Instruction", []>;
-def HasVendorXKeysomRem : Predicate<"Subtarget->hasVendorXKeysomRem()">, AssemblerPredicate<(all_of FeatureVendorXKeysomRem), "'XKeysomRem' (Keysom rem Instruction)">;
+def FeatureVendorXKeysomNoDivu : KeysomExtension<"Divu">;
+defm Divu : KeysomPredicates<FeatureVendorXKeysomNoDivu>;
 
-def FeatureVendorXKeysomRemu : RISCVExtension<1, 0, "Keysom remu Instruction", []>;
-def HasVendorXKeysomRemu : Predicate<"Subtarget->hasVendorXKeysomRemu()">, AssemblerPredicate<(all_of FeatureVendorXKeysomRemu), "'XKeysomRemu' (Keysom remu Instruction)">;
+def FeatureVendorXKeysomNoRem : KeysomExtension<"Rem">;
+defm Rem : KeysomPredicates<FeatureVendorXKeysomNoRem>;
 
-// Atomic Extension
+def FeatureVendorXKeysomNoRemu : KeysomExtension<"Remu">;
+defm Remu : KeysomPredicates<FeatureVendorXKeysomNoRemu>;
 
-def FeatureVendorXKeysomAmoaddw : RISCVExtension<1, 0, "Keysom amoadd.w Instruction", []>;
-def HasVendorXKeysomAmoaddw : Predicate<"Subtarget->hasVendorXKeysomAmoaddw()">, AssemblerPredicate<(all_of FeatureVendorXKeysomAmoaddw), "'XKeysomAmoaddw' (Keysom amoadd.w Instruction)">;
+// A (Atomic) Extension
+def FeatureVendorXKeysomNoAmoaddw : KeysomExtension<"Amoadd.w">;
+defm Amoaddw : KeysomPredicates<FeatureVendorXKeysomNoAmoaddw>;
 
 // *PBH*: End added.
 

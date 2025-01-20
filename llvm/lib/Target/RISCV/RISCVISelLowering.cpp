@@ -333,13 +333,13 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
   }
 
   // *PBH*: Begin added
-  if (!Subtarget.hasVendorXKeysomMul()) {
+  if (Subtarget.hasVendorXKeysomNoMul()) {
     setOperationAction(ISD::MUL, XLenVT, Expand); // If the ISD::MUL (mul) instruction is not available, expand it.
   }
-  if (!Subtarget.hasVendorXKeysomMulh()) {
+  if (Subtarget.hasVendorXKeysomNoMulh()) {
     setOperationAction(ISD::MULHS, XLenVT, Expand); // If the ISD::MULHS (mulh) instruction is not available, expand it.
   }
-  if (!Subtarget.hasVendorXKeysomMulhu()) {
+  if (Subtarget.hasVendorXKeysomNoMulhu()) {
     setOperationAction(ISD::MULHU, XLenVT, Expand); // If the ISD::MULHU (mulhu) instruction is not available, it must be expanded.
   }
   // *PBH*: End added
@@ -353,19 +353,19 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
   }
 
   // *PBH*: Begin added
-  if (!Subtarget.hasVendorXKeysomDiv()) {
+  if (Subtarget.hasVendorXKeysomNoDiv()) {
     // If the ISD::SDIV (div) instruction is not available, expand it.
     setOperationAction(ISD::SDIV, XLenVT, Expand);
   }
-  if (!Subtarget.hasVendorXKeysomDivu()) {
+  if (Subtarget.hasVendorXKeysomNoDivu()) {
     // If the ISD::UDIV (divu) instruction is not available, expand it.
     setOperationAction(ISD::UDIV, XLenVT, Expand);
   }
-  if (!Subtarget.hasVendorXKeysomRem()) {
+  if (Subtarget.hasVendorXKeysomNoRem()) {
     // If the ISD::SREM (rem) instruction is not available, expand it.
     setOperationAction(ISD::SREM, XLenVT, Expand);
   }
-  if (!Subtarget.hasVendorXKeysomRemu()) {
+  if (Subtarget.hasVendorXKeysomNoRemu()) {
     // If the ISD::UREM (remu) instruction is not available, expand it.
     setOperationAction(ISD::UREM, XLenVT, Expand);
   }
@@ -1490,7 +1490,7 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::ATOMIC_LOAD_SUB, XLenVT, Expand);
 
   // *PBH*: Begin added
-  if (!Subtarget.hasVendorXKeysomAmoaddw()) {
+  if (Subtarget.hasVendorXKeysomNoAmoaddw()) {
     setOperationAction(ISD::ATOMIC_LOAD_ADD, XLenVT, Expand);
   }
   // *PBH**: End added
@@ -13062,7 +13062,7 @@ void RISCVTargetLowering::ReplaceNodeResults(SDNode *N,
       assert(Size == (XLen * 2) && "Unexpected custom legalisation");
       // *PBH*: Begin added.
       // We need to have the MUL and MULHSU instructions available for this optimization to be possible.
-      if (!Subtarget.hasVendorXKeysomMul() || !Subtarget.hasVendorXKeysomMulhsu()) {
+      if (Subtarget.hasVendorXKeysomNoMul() || Subtarget.hasVendorXKeysomNoMulhsu()) {
         return;
       }
       // *PBH*: End added.
