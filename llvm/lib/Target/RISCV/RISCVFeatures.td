@@ -1068,6 +1068,9 @@ defm Amoswapw : KeysomPredicates<FeatureVendorXKeysomNoAmoswapw>;
 def FeatureVendorXKeysomNoAmoaddw : KeysomExtension<"Amoadd.w">;
 defm Amoaddw : KeysomPredicates<FeatureVendorXKeysomNoAmoaddw>;
 
+def FeatureVendorXKeysomNoAmoxorw : KeysomExtension<"Amoxor.w">;
+defm Amoxorw : KeysomPredicates<FeatureVendorXKeysomNoAmoxorw>;
+
 // *PBH*: End added.
 
 // Ventana Extenions
