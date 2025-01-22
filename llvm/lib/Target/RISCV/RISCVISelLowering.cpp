@@ -1490,6 +1490,9 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::ATOMIC_LOAD_SUB, XLenVT, Expand);
 
   // *PBH*: Begin added
+  if (Subtarget.hasVendorXKeysomNoAmoswapw()) {
+    setOperationAction(ISD::ATOMIC_SWAP, XLenVT, Expand);
+  }
   if (Subtarget.hasVendorXKeysomNoAmoaddw()) {
     setOperationAction(ISD::ATOMIC_LOAD_ADD, XLenVT, Expand);
   }
