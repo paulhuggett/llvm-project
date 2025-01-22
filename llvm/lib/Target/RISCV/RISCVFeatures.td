@@ -1023,7 +1023,10 @@ def HasStdExtSmctrOrSsctr : Predicate<"Subtarget->hasStdExtSmctrOrSsctr()">,
 // *PBH*: Begin Added
 // Keysom Extensions
 
-class KeysomExtension<string MnemonicStr> : RISCVExtension<1, 0, "Keysom disable " # Mnemonic # " Instruction", []> {
+class KeysomExtension<string MnemonicStr>
+    : RISCVExtension<1, 0,
+                     "Keysom disable " # !tolower(MnemonicStr) # " Instruction",
+                     []> {
   string Mnemonic = MnemonicStr;
 }
 multiclass KeysomPredicates<KeysomExtension Ext> {
