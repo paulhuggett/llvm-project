@@ -1,7 +1,7 @@
 ; RUN: llc -mtriple=riscv32 -mattr=+m < %s \
 ; RUN:   | FileCheck -check-prefix=RV32M_DIVU %s
-; RUN: llc -mtriple=riscv32 -mattr=+m < %s \
-; RUN:     -mattr=+xkeysomnodivu           \
+; RUN: llc -mtriple=riscv32 -mattr=+m  \
+; RUN:     -mattr=+xkeysomnodivu  < %s \
 ; RUN:   | FileCheck -check-prefix=RV32M_NODIVU %s
 
 define signext i32 @divide(i32 noundef %x, i32 noundef %y) nounwind {

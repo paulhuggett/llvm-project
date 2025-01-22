@@ -1,7 +1,7 @@
 ; RUN: llc -mtriple=riscv32 -mattr=+a < %s \
 ; RUN:   | FileCheck -check-prefix=RV32A_AMOXORW %s
-; RUN: llc -mtriple=riscv32 -mattr=+a < %s \
-; RUN:     -mattr=+xkeysomnoamoxorw        \
+; RUN: llc -mtriple=riscv32 -mattr=+a    \
+; RUN:     -mattr=+xkeysomnoamoxorw < %s \
 ; RUN:   | FileCheck -check-prefix=RV32A_NOAMOXORW %s
 
 define void @amoxorw(ptr %p) nounwind {

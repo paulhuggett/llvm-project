@@ -1,7 +1,7 @@
 ; RUN: llc -mtriple=riscv32 -mattr=+a < %s \
 ; RUN:   | FileCheck -check-prefix=RV32A_AMOSWAPW %s
-; RUN: llc -mtriple=riscv32 -mattr=+a < %s \
-; RUN:     -mattr=+xkeysomnoamoswapw       \
+; RUN: llc -mtriple=riscv32 -mattr=+a     \
+; RUN:     -mattr=+xkeysomnoamoswapw < %s \
 ; RUN:   | FileCheck -check-prefix=RV32A_NOAMOSWAPW %s
 
 define i32 @swap(ptr %p) nounwind {
