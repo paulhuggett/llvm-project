@@ -1508,6 +1508,12 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
   if (Subtarget.hasVendorXKeysomNoAmominw()) {
     setOperationAction(ISD::ATOMIC_LOAD_MIN, XLenVT, Expand);
   }
+
+  if (Subtarget.hasVendorXKeysomNoFmadds()) {
+    setOperationAction(ISD::FMA, MVT::f32, Expand);
+    setOperationAction(ISD::STRICT_FMA, MVT::f32, Expand);
+  }
+
   // *PBH**: End added
 
   if (Subtarget.hasForcedAtomics()) {
@@ -21672,6 +21678,11 @@ bool RISCVTargetLowering::isFMAFasterThanFMulAndFAdd(const MachineFunction &MF,
     return VT.isVector() ? Subtarget.hasVInstructionsF16()
                          : Subtarget.hasStdExtZfhOrZhinx();
   case MVT::f32:
+    // *PBH*: Begin added. If fmaadd.s is disabled it's never faster!
+    if (Subtarget.hasVendorXKeysomNoFmadds()) {
+      return false;
+    }
+    // *PBH*: End added.
     return Subtarget.hasStdExtFOrZfinx();
   case MVT::f64:
     return Subtarget.hasStdExtDOrZdinx();
