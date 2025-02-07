@@ -1080,6 +1080,15 @@ defm Amoorw : KeysomPredicates<FeatureVendorXKeysomNoAmoorw>;
 def FeatureVendorXKeysomNoAmominw : KeysomExtension<"Amomin.w">;
 defm Amominw : KeysomPredicates<FeatureVendorXKeysomNoAmominw>;
 
+def FeatureVendorXKeysomNoAmomaxw : KeysomExtension<"Amomax.w">;
+defm Amomaxw : KeysomPredicates<FeatureVendorXKeysomNoAmomaxw>;
+
+def FeatureVendorXKeysomNoAmominuw : KeysomExtension<"Amominu.w">;
+defm Amominuw : KeysomPredicates<FeatureVendorXKeysomNoAmominuw>;
+
+def FeatureVendorXKeysomNoAmomaxuw : KeysomExtension<"Amomaxu.w">;
+defm Amomaxuw : KeysomPredicates<FeatureVendorXKeysomNoAmomaxuw>;
+
 // F extension
 def FeatureVendorXKeysomNoFmadds : KeysomExtension<"Fmadds">;
 defm Fmadds : KeysomPredicates<FeatureVendorXKeysomNoFmadds>;

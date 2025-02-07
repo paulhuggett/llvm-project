@@ -1508,6 +1508,15 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
   if (Subtarget.hasVendorXKeysomNoAmominw()) {
     setOperationAction(ISD::ATOMIC_LOAD_MIN, XLenVT, Expand);
   }
+  if (Subtarget.hasVendorXKeysomNoAmomaxw()) {
+    setOperationAction(ISD::ATOMIC_LOAD_MAX, XLenVT, Expand);
+  }
+  if (Subtarget.hasVendorXKeysomNoAmominuw()) {
+    setOperationAction(ISD::ATOMIC_LOAD_UMIN, XLenVT, Expand);
+  }
+  if (Subtarget.hasVendorXKeysomNoAmomaxuw()) {
+    setOperationAction(ISD::ATOMIC_LOAD_UMAX, XLenVT, Expand);
+  }
 
   if (Subtarget.hasVendorXKeysomNoFmadds()) {
     setOperationAction(ISD::FMA, MVT::f32, Expand);

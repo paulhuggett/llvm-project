@@ -66,15 +66,6 @@ defm SC_W       : SC_r_aq_rl<0b010, "sc.w">,
                   Sched<[WriteAtomicSTW, ReadAtomicSTW, ReadAtomicSTW]>;
 } // Predicates = [HasStdExtZalrsc], IsSignExtendingOpW = 1
 
-let Predicates = [HasStdExtZaamo], IsSignExtendingOpW = 1 in {
-defm AMOMAX_W   : AMO_rr_aq_rl<0b10100, 0b010, "amomax.w">,
-                  Sched<[WriteAtomicW, ReadAtomicWA, ReadAtomicWD]>;
-defm AMOMINU_W  : AMO_rr_aq_rl<0b11000, 0b010, "amominu.w">,
-                  Sched<[WriteAtomicW, ReadAtomicWA, ReadAtomicWD]>;
-defm AMOMAXU_W  : AMO_rr_aq_rl<0b11100, 0b010, "amomaxu.w">,
-                  Sched<[WriteAtomicW, ReadAtomicWA, ReadAtomicWD]>;
-} // Predicates = [HasStdExtZaamo], IsSignExtendingOpW = 1
-
 // *PBH*: Begin Added
 let Predicates = [HasStdExtZaamo, HasVendorXKeysomAmoswapw], IsSignExtendingOpW = 1 in {
 defm AMOSWAP_W  : AMO_rr_aq_rl<0b00001, 0b010, "amoswap.w">,
@@ -97,6 +88,18 @@ defm AMOOR_W    : AMO_rr_aq_rl<0b01000, 0b010, "amoor.w">,
 }
 let Predicates = [HasStdExtZaamo, HasVendorXKeysomAmominw], IsSignExtendingOpW = 1 in {
 defm AMOMIN_W   : AMO_rr_aq_rl<0b10000, 0b010, "amomin.w">,
+                  Sched<[WriteAtomicW, ReadAtomicWA, ReadAtomicWD]>;
+}
+let Predicates = [HasStdExtZaamo, HasVendorXKeysomAmomaxw], IsSignExtendingOpW = 1 in {
+defm AMOMAX_W   : AMO_rr_aq_rl<0b10100, 0b010, "amomax.w">,
+                  Sched<[WriteAtomicW, ReadAtomicWA, ReadAtomicWD]>;
+}
+let Predicates = [HasStdExtZaamo, HasVendorXKeysomAmominuw], IsSignExtendingOpW = 1 in {
+defm AMOMINU_W  : AMO_rr_aq_rl<0b11000, 0b010, "amominu.w">,
+                  Sched<[WriteAtomicW, ReadAtomicWA, ReadAtomicWD]>;
+}
+let Predicates = [HasStdExtZaamo, HasVendorXKeysomAmomaxuw], IsSignExtendingOpW = 1 in {
+defm AMOMAXU_W  : AMO_rr_aq_rl<0b11100, 0b010, "amomaxu.w">,
                   Sched<[WriteAtomicW, ReadAtomicWA, ReadAtomicWD]>;
 }
 // *PBH*: End Added
