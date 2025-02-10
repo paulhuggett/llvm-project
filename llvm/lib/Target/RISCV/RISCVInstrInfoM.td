@@ -24,16 +24,21 @@ def riscv_remuw : SDNode<"RISCVISD::REMUW", SDT_RISCVIntBinOpW>;
 // Instructions
 //===----------------------------------------------------------------------===//
 
-let Predicates = [HasStdExtZmmul] in {
-def MUL     : ALU_rr<0b0000001, 0b000, "mul", Commutable=1>,
-              Sched<[WriteIMul, ReadIMul, ReadIMul]>;
-def MULH    : ALU_rr<0b0000001, 0b001, "mulh", Commutable=1>,
-              Sched<[WriteIMul, ReadIMul, ReadIMul]>;
-def MULHSU  : ALU_rr<0b0000001, 0b010, "mulhsu">,
-              Sched<[WriteIMul, ReadIMul, ReadIMul]>;
-def MULHU   : ALU_rr<0b0000001, 0b011, "mulhu", Commutable=1>,
-              Sched<[WriteIMul, ReadIMul, ReadIMul]>;
-} // Predicates = [HasStdExtZmmul]
+// *PBH*: Begin added
+// Wrap multiply instructions in both HasStdExtZmmul and a specfic test for each.
+let Predicates = [HasStdExtZmmul, HasVendorXKeysomMul] in {
+def MUL     : ALU_rr<0b0000001, 0b000, "mul", Commutable=1>, Sched<[WriteIMul, ReadIMul, ReadIMul]>;
+}
+let Predicates = [HasStdExtZmmul, HasVendorXKeysomMulh] in {
+def MULH    : ALU_rr<0b0000001, 0b001, "mulh", Commutable=1>, Sched<[WriteIMul, ReadIMul, ReadIMul]>;
+}
+let Predicates = [HasStdExtZmmul, HasVendorXKeysomMulhu] in {
+def MULHU   : ALU_rr<0b0000001, 0b011, "mulhu", Commutable=1>, Sched<[WriteIMul, ReadIMul, ReadIMul]>;
+}
+let Predicates = [HasStdExtZmmul, HasVendorXKeysomMulhsu] in {
+def MULHSU  : ALU_rr<0b0000001, 0b010, "mulhsu">, Sched<[WriteIMul, ReadIMul, ReadIMul]>;
+}
+// *PBH*: End Added
 
 let Predicates = [HasStdExtM] in {
 def DIV     : ALU_rr<0b0000001, 0b100, "div">,
@@ -66,19 +71,17 @@ def REMUW   : ALUW_rr<0b0000001, 0b111, "remuw">,
 // Pseudo-instructions and codegen patterns
 //===----------------------------------------------------------------------===//
 
-let Predicates = [HasStdExtZmmul] in {
-def : PatGprGpr<mul, MUL>;
-def : PatGprGpr<mulhs, MULH>;
-def : PatGprGpr<mulhu, MULHU>;
-def : PatGprGpr<riscv_mulhsu, MULHSU>;
-} // Predicates = [HasStdExtZmmul]
+// *PBH*: Begin added
+let Predicates = [HasStdExtZmmul, HasVendorXKeysomMul   ] in { def : PatGprGpr<mul, MUL>; }
+let Predicates = [HasStdExtZmmul, HasVendorXKeysomMulh  ] in { def : PatGprGpr<mulhs, MULH >; }
+let Predicates = [HasStdExtZmmul, HasVendorXKeysomMulhu ] in { def : PatGprGpr<mulhu, MULHU>; }
+let Predicates = [HasStdExtZmmul, HasVendorXKeysomMulhsu] in { def : PatGprGpr<riscv_mulhsu, MULHSU>; }
 
-let Predicates = [HasStdExtM] in {
-def : PatGprGpr<sdiv, DIV>;
-def : PatGprGpr<udiv, DIVU>;
-def : PatGprGpr<srem, REM>;
-def : PatGprGpr<urem, REMU>;
-} // Predicates = [HasStdExtM]
+let Predicates = [HasStdExtM, HasVendorXKeysomDiv ] in { def : PatGprGpr<sdiv, DIV>; }
+let Predicates = [HasStdExtM, HasVendorXKeysomDivu] in { def : PatGprGpr<udiv, DIVU>; }
+let Predicates = [HasStdExtM, HasVendorXKeysomRem ] in { def : PatGprGpr<srem, REM>; }
+let Predicates = [HasStdExtM, HasVendorXKeysomRemu] in { def : PatGprGpr<urem, REMU>; }
+// *PBH*: End added
 
 // Select W instructions if only the lower 32-bits of the result are used.
 let Predicates = [HasStdExtZmmul, IsRV64] in
