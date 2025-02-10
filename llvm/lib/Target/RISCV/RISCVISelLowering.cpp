@@ -678,6 +678,15 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
       setMinCmpXchgSizeInBits(8);
     else
       setMinCmpXchgSizeInBits(32);
+
+    // *PBH*: Begin added
+    if (Subtarget.hasVendorXKeysomNoLrw() ||
+        Subtarget.hasVendorXKeysomNoScw()) {
+      setMinCmpXchgSizeInBits(0);
+      setMaxAtomicSizeInBitsSupported(0);
+    }
+    // *PBH*: End added
+
   } else if (Subtarget.hasForcedAtomics()) {
     setMaxAtomicSizeInBitsSupported(Subtarget.getXLen());
   } else {
@@ -1518,12 +1527,12 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::ATOMIC_LOAD_UMAX, XLenVT, Expand);
   }
 
+  // A stray instruction from the floating-point extension.
   if (Subtarget.hasVendorXKeysomNoFmadds()) {
     setOperationAction(ISD::FMA, MVT::f32, Expand);
     setOperationAction(ISD::STRICT_FMA, MVT::f32, Expand);
   }
-
-  // *PBH**: End added
+  // *PBH*: End added
 
   if (Subtarget.hasForcedAtomics()) {
     // Force __sync libcalls to be emitted for atomic rmw/cas operations.

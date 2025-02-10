@@ -1062,6 +1062,13 @@ def FeatureVendorXKeysomNoRemu : KeysomExtension<"Remu">;
 defm Remu : KeysomPredicates<FeatureVendorXKeysomNoRemu>;
 
 // A (Atomic) Extension
+
+def FeatureVendorXKeysomNoLrw : KeysomExtension<"lr.w">;
+defm Lrw : KeysomPredicates<FeatureVendorXKeysomNoLrw>;
+
+def FeatureVendorXKeysomNoScw : KeysomExtension<"sc.w">;
+defm Scw : KeysomPredicates<FeatureVendorXKeysomNoScw>;
+
 def FeatureVendorXKeysomNoAmoswapw : KeysomExtension<"Amoswap.w">;
 defm Amoswapw : KeysomPredicates<FeatureVendorXKeysomNoAmoswapw>;
 

@@ -60,13 +60,15 @@ multiclass AMO_rr_aq_rl<bits<5> funct5, bits<3> funct3, string opcodestr> {
 // Instructions
 //===----------------------------------------------------------------------===//
 
-let Predicates = [HasStdExtZalrsc], IsSignExtendingOpW = 1 in {
+// *PBH*: Begin Added
+let Predicates = [HasStdExtZalrsc, HasVendorXKeysomLrw], IsSignExtendingOpW = 1 in {
 defm LR_W       : LR_r_aq_rl<0b010, "lr.w">, Sched<[WriteAtomicLDW, ReadAtomicLDW]>;
+}
+let Predicates = [HasStdExtZalrsc, HasVendorXKeysomScw], IsSignExtendingOpW = 1 in {
 defm SC_W       : SC_r_aq_rl<0b010, "sc.w">,
                   Sched<[WriteAtomicSTW, ReadAtomicSTW, ReadAtomicSTW]>;
-} // Predicates = [HasStdExtZalrsc], IsSignExtendingOpW = 1
+}
 
-// *PBH*: Begin Added
 let Predicates = [HasStdExtZaamo, HasVendorXKeysomAmoswapw], IsSignExtendingOpW = 1 in {
 defm AMOSWAP_W  : AMO_rr_aq_rl<0b00001, 0b010, "amoswap.w">,
                   Sched<[WriteAtomicW, ReadAtomicWA, ReadAtomicWD]>;
