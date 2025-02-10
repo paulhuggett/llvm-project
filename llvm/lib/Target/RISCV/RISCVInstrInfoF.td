@@ -352,7 +352,11 @@ def PseudoMV_FPR32INX : Pseudo<(outs GPRF32:$rd), (ins GPRF32:$rs), []>,
 
 foreach Ext = FExts in {
   let SchedRW = [WriteFMA32, ReadFMA32, ReadFMA32, ReadFMA32Addend] in {
-    defm FMADD_S  : FPFMA_rrr_frm_m<OPC_MADD,  0b00, "fmadd.s",  Ext>;
+    // *PBH*: Begin modified: append HasVendorXKeysomFmadds to the Predicates list
+    let Predicates = Ext.Predicates # [HasVendorXKeysomFmadds] in {
+      defm FMADD_S  : FPFMA_rrr_frm_m<OPC_MADD,  0b00, "fmadd.s",  Ext>;
+    }
+    // *PBH: End modified
     defm FMSUB_S  : FPFMA_rrr_frm_m<OPC_MSUB,  0b00, "fmsub.s",  Ext>;
     defm FNMSUB_S : FPFMA_rrr_frm_m<OPC_NMSUB, 0b00, "fnmsub.s", Ext>;
     defm FNMADD_S : FPFMA_rrr_frm_m<OPC_NMADD, 0b00, "fnmadd.s", Ext>;
@@ -600,8 +604,12 @@ def : Pat<(fcopysign FPR32:$rs1, (fneg FPR32:$rs2)),
           (FSGNJN_S FPR32:$rs1, FPR32:$rs2)>;
 
 // fmadd: rs1 * rs2 + rs3
+// *PBH*: Begin modified: predicates should include the Keysom check
+let Predicates = [HasStdExtF, HasVendorXKeysomFmadds] in {
 def : Pat<(any_fma FPR32:$rs1, FPR32:$rs2, FPR32:$rs3),
           (FMADD_S $rs1, $rs2, $rs3, FRM_DYN)>;
+}
+// *PBH*: End modified
 
 // fmsub: rs1 * rs2 - rs3
 def : Pat<(any_fma FPR32:$rs1, FPR32:$rs2, (fneg FPR32:$rs3)),

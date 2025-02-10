@@ -785,10 +785,13 @@ set(riscv_SOURCES
   ${GENERIC_SOURCES}
   ${GENERIC_TF_SOURCES}
 )
+# *PBH*: begin modified: mulsi3 is now a .c rather than .S
 set(riscv32_SOURCES
-  riscv/mulsi3.S
+  riscv/mulsi3.c
   ${riscv_SOURCES}
 )
+# *PBH*: end modified
+
 set(riscv64_SOURCES
   riscv/muldi3.S
   ${riscv_SOURCES}

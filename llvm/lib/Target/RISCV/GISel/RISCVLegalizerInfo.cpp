@@ -502,13 +502,25 @@ RISCVLegalizerInfo::RISCVLegalizerInfo(const RISCVSubtarget &ST)
   // FP Operations
 
   // FIXME: Support s128 for rv32 when libcall handling is able to use sret.
+
+  // *PBH*: Begin modified. Removed G_FMA from the list passed to
+  // getActionDefinitionsBuilder() and added the second call below which adds a
+  // check of the hasVendorXKeysomNoFmadds() predicate.
   getActionDefinitionsBuilder(
-      {G_FADD, G_FSUB, G_FMUL, G_FDIV, G_FMA, G_FSQRT, G_FMAXNUM, G_FMINNUM})
+      {G_FADD, G_FSUB, G_FMUL, G_FDIV, G_FSQRT, G_FMAXNUM, G_FMINNUM})
       .legalFor(ST.hasStdExtF(), {s32})
       .legalFor(ST.hasStdExtD(), {s64})
       .legalFor(ST.hasStdExtZfh(), {s16})
       .libcallFor({s32, s64})
       .libcallFor(ST.is64Bit(), {s128});
+
+  getActionDefinitionsBuilder(G_FMA)
+      .legalFor(ST.hasStdExtF() && !ST.hasVendorXKeysomNoFmadds(), {s32})
+      .legalFor(ST.hasStdExtD(), {s64})
+      .legalFor(ST.hasStdExtZfh(), {s16})
+      .libcallFor({s32, s64})
+      .libcallFor(ST.is64Bit(), {s128});
+  // *PBH*: End modified.
 
   getActionDefinitionsBuilder({G_FNEG, G_FABS})
       .legalFor(ST.hasStdExtF(), {s32})

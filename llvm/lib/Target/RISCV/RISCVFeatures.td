@@ -1111,6 +1111,88 @@ def HasStdExtZbbOrZbkbOrP
 // Vendor extensions
 //===----------------------------------------------------------------------===//
 
+// *PBH*: Begin Added
+// Keysom Extensions
+
+class KeysomExtension<string MnemonicStr>
+    : RISCVExtension<1, 0,
+                     "Keysom disable " # !tolower(MnemonicStr) # " Instruction",
+                     []> {
+  string Mnemonic = MnemonicStr;
+}
+multiclass KeysomPredicates<KeysomExtension Ext> {
+  defvar Instr = Ext.Mnemonic;
+  def HasVendorXKeysomNo#NAME : Predicate<"Subtarget->hasVendorXKeysomNo" # Instr # "()">, AssemblerPredicate<(all_of Ext), "'XKeysomNo" # Instr # "' (Keysom disable " # Instr # " Instruction)">;
+  def HasVendorXKeysom#NAME : Predicate<"!Subtarget->hasVendorXKeysomNo" # Instr # "()">;
+}
+
+// M/Zmmul Extension
+def FeatureVendorXKeysomNoMul : KeysomExtension<"Mul">;
+defm Mul : KeysomPredicates<FeatureVendorXKeysomNoMul>;
+
+def FeatureVendorXKeysomNoMulh : KeysomExtension<"Mulh">;
+defm Mulh : KeysomPredicates<FeatureVendorXKeysomNoMulh>;
+
+def FeatureVendorXKeysomNoMulhsu : KeysomExtension<"Mulhsu">;
+defm Mulhsu : KeysomPredicates<FeatureVendorXKeysomNoMulhsu>;
+
+def FeatureVendorXKeysomNoMulhu : KeysomExtension<"Mulhu">;
+defm Mulhu : KeysomPredicates<FeatureVendorXKeysomNoMulhu>;
+
+// M (Multiply and Divide) Extension
+def FeatureVendorXKeysomNoDiv : KeysomExtension<"Div">;
+defm Div : KeysomPredicates<FeatureVendorXKeysomNoDiv>;
+
+def FeatureVendorXKeysomNoDivu : KeysomExtension<"Divu">;
+defm Divu : KeysomPredicates<FeatureVendorXKeysomNoDivu>;
+
+def FeatureVendorXKeysomNoRem : KeysomExtension<"Rem">;
+defm Rem : KeysomPredicates<FeatureVendorXKeysomNoRem>;
+
+def FeatureVendorXKeysomNoRemu : KeysomExtension<"Remu">;
+defm Remu : KeysomPredicates<FeatureVendorXKeysomNoRemu>;
+
+// A (Atomic) Extension
+
+def FeatureVendorXKeysomNoLrw : KeysomExtension<"lr.w">;
+defm Lrw : KeysomPredicates<FeatureVendorXKeysomNoLrw>;
+
+def FeatureVendorXKeysomNoScw : KeysomExtension<"sc.w">;
+defm Scw : KeysomPredicates<FeatureVendorXKeysomNoScw>;
+
+def FeatureVendorXKeysomNoAmoswapw : KeysomExtension<"Amoswap.w">;
+defm Amoswapw : KeysomPredicates<FeatureVendorXKeysomNoAmoswapw>;
+
+def FeatureVendorXKeysomNoAmoaddw : KeysomExtension<"Amoadd.w">;
+defm Amoaddw : KeysomPredicates<FeatureVendorXKeysomNoAmoaddw>;
+
+def FeatureVendorXKeysomNoAmoxorw : KeysomExtension<"Amoxor.w">;
+defm Amoxorw : KeysomPredicates<FeatureVendorXKeysomNoAmoxorw>;
+
+def FeatureVendorXKeysomNoAmoandw : KeysomExtension<"Amoand.w">;
+defm Amoandw : KeysomPredicates<FeatureVendorXKeysomNoAmoandw>;
+
+def FeatureVendorXKeysomNoAmoorw : KeysomExtension<"Amoor.w">;
+defm Amoorw : KeysomPredicates<FeatureVendorXKeysomNoAmoorw>;
+
+def FeatureVendorXKeysomNoAmominw : KeysomExtension<"Amomin.w">;
+defm Amominw : KeysomPredicates<FeatureVendorXKeysomNoAmominw>;
+
+def FeatureVendorXKeysomNoAmomaxw : KeysomExtension<"Amomax.w">;
+defm Amomaxw : KeysomPredicates<FeatureVendorXKeysomNoAmomaxw>;
+
+def FeatureVendorXKeysomNoAmominuw : KeysomExtension<"Amominu.w">;
+defm Amominuw : KeysomPredicates<FeatureVendorXKeysomNoAmominuw>;
+
+def FeatureVendorXKeysomNoAmomaxuw : KeysomExtension<"Amomaxu.w">;
+defm Amomaxuw : KeysomPredicates<FeatureVendorXKeysomNoAmomaxuw>;
+
+// F extension
+def FeatureVendorXKeysomNoFmadds : KeysomExtension<"Fmadds">;
+defm Fmadds : KeysomPredicates<FeatureVendorXKeysomNoFmadds>;
+
+// *PBH*: End added.
+
 // Ventana Extensions
 
 def FeatureVendorXVentanaCondOps

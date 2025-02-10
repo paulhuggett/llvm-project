@@ -348,6 +348,18 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::MUL, MVT::i64, Custom);
   }
 
+  // *PBH*: Begin added
+  if (Subtarget.hasVendorXKeysomNoMul()) {
+    setOperationAction(ISD::MUL, XLenVT, Expand); // If the ISD::MUL (mul) instruction is not available, expand it.
+  }
+  if (Subtarget.hasVendorXKeysomNoMulh()) {
+    setOperationAction(ISD::MULHS, XLenVT, Expand); // If the ISD::MULHS (mulh) instruction is not available, expand it.
+  }
+  if (Subtarget.hasVendorXKeysomNoMulhu()) {
+    setOperationAction(ISD::MULHU, XLenVT, Expand); // If the ISD::MULHU (mulhu) instruction is not available, it must be expanded.
+  }
+  // *PBH*: End added
+
   if (!Subtarget.hasStdExtM()) {
     setOperationAction({ISD::SDIV, ISD::UDIV, ISD::SREM, ISD::UREM}, XLenVT,
                        Expand);
@@ -355,6 +367,25 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
     setOperationAction({ISD::SDIV, ISD::UDIV, ISD::UREM},
                        {MVT::i8, MVT::i16, MVT::i32}, Custom);
   }
+
+  // *PBH*: Begin added
+  if (Subtarget.hasVendorXKeysomNoDiv()) {
+    // If the ISD::SDIV (div) instruction is not available, expand it.
+    setOperationAction(ISD::SDIV, XLenVT, Expand);
+  }
+  if (Subtarget.hasVendorXKeysomNoDivu()) {
+    // If the ISD::UDIV (divu) instruction is not available, expand it.
+    setOperationAction(ISD::UDIV, XLenVT, Expand);
+  }
+  if (Subtarget.hasVendorXKeysomNoRem()) {
+    // If the ISD::SREM (rem) instruction is not available, expand it.
+    setOperationAction(ISD::SREM, XLenVT, Expand);
+  }
+  if (Subtarget.hasVendorXKeysomNoRemu()) {
+    // If the ISD::UREM (remu) instruction is not available, expand it.
+    setOperationAction(ISD::UREM, XLenVT, Expand);
+  }
+  // *PBH*: End added
 
   setOperationAction(
       {ISD::SDIVREM, ISD::UDIVREM, ISD::SMUL_LOHI, ISD::UMUL_LOHI}, XLenVT,
@@ -687,6 +718,15 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
       setMinCmpXchgSizeInBits(8);
     else
       setMinCmpXchgSizeInBits(32);
+
+    // *PBH*: Begin added
+    if (Subtarget.hasVendorXKeysomNoLrw() ||
+        Subtarget.hasVendorXKeysomNoScw()) {
+      setMinCmpXchgSizeInBits(0);
+      setMaxAtomicSizeInBitsSupported(0);
+    }
+    // *PBH*: End added
+
   } else if (Subtarget.hasForcedAtomics()) {
     setMaxAtomicSizeInBitsSupported(Subtarget.getXLen());
   } else {
@@ -1534,6 +1574,42 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
 
   if (Subtarget.hasStdExtA())
     setOperationAction(ISD::ATOMIC_LOAD_SUB, XLenVT, Expand);
+
+  // *PBH*: Begin added
+  if (Subtarget.hasVendorXKeysomNoAmoswapw()) {
+    setOperationAction(ISD::ATOMIC_SWAP, XLenVT, Expand);
+  }
+  if (Subtarget.hasVendorXKeysomNoAmoaddw()) {
+    setOperationAction(ISD::ATOMIC_LOAD_ADD, XLenVT, Expand);
+  }
+  if (Subtarget.hasVendorXKeysomNoAmoxorw()) {
+    setOperationAction(ISD::ATOMIC_LOAD_XOR, XLenVT, Expand);
+  }
+  if (Subtarget.hasVendorXKeysomNoAmoandw()) {
+    setOperationAction(ISD::ATOMIC_LOAD_AND, XLenVT, Expand);
+  }
+  if (Subtarget.hasVendorXKeysomNoAmoorw()) {
+    setOperationAction(ISD::ATOMIC_LOAD_OR, XLenVT, Expand);
+  }
+  if (Subtarget.hasVendorXKeysomNoAmominw()) {
+    setOperationAction(ISD::ATOMIC_LOAD_MIN, XLenVT, Expand);
+  }
+  if (Subtarget.hasVendorXKeysomNoAmomaxw()) {
+    setOperationAction(ISD::ATOMIC_LOAD_MAX, XLenVT, Expand);
+  }
+  if (Subtarget.hasVendorXKeysomNoAmominuw()) {
+    setOperationAction(ISD::ATOMIC_LOAD_UMIN, XLenVT, Expand);
+  }
+  if (Subtarget.hasVendorXKeysomNoAmomaxuw()) {
+    setOperationAction(ISD::ATOMIC_LOAD_UMAX, XLenVT, Expand);
+  }
+
+  // A stray instruction from the floating-point extension.
+  if (Subtarget.hasVendorXKeysomNoFmadds()) {
+    setOperationAction(ISD::FMA, MVT::f32, Expand);
+    setOperationAction(ISD::STRICT_FMA, MVT::f32, Expand);
+  }
+  // *PBH*: End added
 
   if (Subtarget.hasForcedAtomics()) {
     // Force __sync libcalls to be emitted for atomic rmw/cas operations.
@@ -13975,6 +14051,12 @@ void RISCVTargetLowering::ReplaceNodeResults(SDNode *N,
     // This multiply needs to be expanded, try to use MULHSU+MUL if possible.
     if (Size > XLen) {
       assert(Size == (XLen * 2) && "Unexpected custom legalisation");
+      // *PBH*: Begin added.
+      // We need to have the MUL and MULHSU instructions available for this optimization to be possible.
+      if (Subtarget.hasVendorXKeysomNoMul() || Subtarget.hasVendorXKeysomNoMulhsu()) {
+        return;
+      }
+      // *PBH*: End added.
       SDValue LHS = N->getOperand(0);
       SDValue RHS = N->getOperand(1);
       APInt HighMask = APInt::getHighBitsSet(Size, XLen);
@@ -23373,6 +23455,11 @@ bool RISCVTargetLowering::isFMAFasterThanFMulAndFAdd(const MachineFunction &MF,
     return VT.isVector() ? Subtarget.hasVInstructionsF16()
                          : Subtarget.hasStdExtZfhOrZhinx();
   case MVT::f32:
+    // *PBH*: Begin added. If fmaadd.s is disabled it's never faster!
+    if (Subtarget.hasVendorXKeysomNoFmadds()) {
+      return false;
+    }
+    // *PBH*: End added.
     return Subtarget.hasStdExtFOrZfinx();
   case MVT::f64:
     return Subtarget.hasStdExtDOrZdinx();
