@@ -556,6 +556,8 @@ let hasSideEffects = 0, mayLoad = 0, mayStore = 0,
 def C_JALR : RVInst16CR<0b1001, 0b10, (outs), (ins GPRNoX0:$rs1),
                         "c.jalr", "$rs1">, Sched<[WriteJalr, ReadJalr]>;
 
+// *PBH*: Begin added HasVendorXKeysomCadd predicate
+let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCadd] in {
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def C_ADD : RVInst16CR<0b1001, 0b10, (outs GPRNoX0:$rd),
                        (ins GPRNoX0:$rs1, GPRNoX0:$rs2),
@@ -563,6 +565,8 @@ def C_ADD : RVInst16CR<0b1001, 0b10, (outs GPRNoX0:$rd),
             Sched<[WriteIALU, ReadIALU, ReadIALU]> {
   let Constraints = "$rs1 = $rd";
 }
+} // Predicates = [HasStdExtCOrZca, HasVendorXKeysomCadd]
+// *PBH*: End added predicate
 
 let Predicates = [HasStdExtCOrZcd, HasStdExtD] in
 def C_FSDSP  : CStackStore<0b101, "c.fsdsp", FPR64, uimm9_lsb000>,
@@ -646,6 +650,8 @@ def C_MV_HINT : RVInst16CR<0b1000, 0b10, (outs GPRX0:$rs1), (ins GPRNoX0:$rs2),
   let DecoderMethod = "decodeRVCInstrRdRs2";
 }
 
+// *PBH: Begin added HasVendorXKeysomCadd
+let Predicates = [HasStdExtCOrZca, HasRVCHints, HasVendorXKeysomCadd] in {
 def C_ADD_HINT : RVInst16CR<0b1001, 0b10, (outs GPRX0:$rd),
                             (ins GPRX0:$rs1, GPRNoX0:$rs2),
                             "c.add", "$rs1, $rs2">,
@@ -654,6 +660,8 @@ def C_ADD_HINT : RVInst16CR<0b1001, 0b10, (outs GPRX0:$rd),
   let Inst{11-7} = 0;
   let DecoderMethod = "decodeRVCInstrRdRs1Rs2";
 }
+} // Predicates = [HasStdExtCOrZca, HasRVCHints, HasVendorXKeysomCadd]
+// *PBH: End added HasVendorXKeysomCadd override
 
 def C_SLLI_HINT : RVInst16CI<0b000, 0b10, (outs GPRX0:$rd_wb),
                              (ins GPRX0:$rd, uimmlog2xlennonzero:$imm),
@@ -1023,11 +1031,16 @@ def : CompressPat<(EBREAK), (C_EBREAK)>;
 def : CompressPat<(UNIMP), (C_UNIMP)>;
 def : CompressPat<(JALR X1, GPRNoX0:$rs1, 0),
                   (C_JALR GPRNoX0:$rs1)>;
+
+// *PBH: Begin added HasVendorXKeysomCadd predicate around this block
+let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCadd] in {
 def : CompressPat<(ADD GPRNoX0:$rs1, GPRNoX0:$rs1, GPRNoX0:$rs2),
                   (C_ADD GPRNoX0:$rs1, GPRNoX0:$rs2)>;
 let isCompressOnly = true in
 def : CompressPat<(ADD GPRNoX0:$rs1, GPRNoX0:$rs2, GPRNoX0:$rs1),
                   (C_ADD GPRNoX0:$rs1, GPRNoX0:$rs2)>;
+}
+// *PBH*: End added HasVendorXKeysomCadd predicate
 } // Predicates = [HasStdExtCOrZca]
 
 let Predicates = [HasStdExtCOrZcd, HasStdExtD] in {
