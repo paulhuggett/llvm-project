@@ -1104,7 +1104,7 @@ def HasStdExtZbbOrZbkbOrP
 
 class KeysomExtension<string mnemonic>
     : RISCVExtension<1, 0,
-                     "Keysom disable the " # !tolower(mnemonic) # " instruction",
+                     "disable the " # !tolower(mnemonic) # " instruction",
                      []> {
   string Mnemonic = mnemonic;
 }
@@ -1112,7 +1112,7 @@ multiclass KeysomPredicates<KeysomExtension Ext> {
   defvar Cond = "Subtarget->hasVendorXKeysomNo" # Ext.Mnemonic # "()";
   defvar Desc = Ext.Desc;
   def HasVendorXKeysomNo#NAME : Predicate<Cond>, AssemblerPredicate<(all_of Ext), Desc>;
-  def HasVendorXKeysom#NAME   : Predicate<"!" # Cond>, AssemblerPredicate<(all_of (not Ext))>;
+  def HasVendorXKeysom#NAME   : Predicate<"!" # Cond>, AssemblerPredicate<(all_of (not Ext)), "eliminate " # Desc>;
 }
 
 // M/Zmmul Extension
@@ -1179,6 +1179,12 @@ defm Amomaxuw : KeysomPredicates<FeatureVendorXKeysomNoAmomaxuw>;
 // C (Compressed) Extension
 def FeatureVendorXKeysomNoCadd : KeysomExtension<"c.add">;
 defm Cadd : KeysomPredicates<FeatureVendorXKeysomNoCadd>;
+
+def FeatureVendorXKeysomNoClwsp : KeysomExtension<"c.lwsp">;
+defm Clwsp : KeysomPredicates<FeatureVendorXKeysomNoClwsp>;
+
+def FeatureVendorXKeysomNoCswsp : KeysomExtension<"c.swsp">;
+defm Cswsp : KeysomPredicates<FeatureVendorXKeysomNoCswsp>;
 
 // F extension
 def FeatureVendorXKeysomNoFmadds : KeysomExtension<"Fmadds">;
