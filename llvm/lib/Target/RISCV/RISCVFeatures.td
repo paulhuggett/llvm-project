@@ -1107,6 +1107,12 @@ defm Clwsp : KeysomPredicates<FeatureVendorXKeysomNoClwsp>;
 def FeatureVendorXKeysomNoCswsp : KeysomExtension<"c.swsp">;
 defm Cswsp : KeysomPredicates<FeatureVendorXKeysomNoCswsp>;
 
+def FeatureVendorXKeysomNoClw : KeysomExtension<"c.lw">;
+defm Clw : KeysomPredicates<FeatureVendorXKeysomNoClw>;
+
+def FeatureVendorXKeysomNoCsw : KeysomExtension<"c.sw">;
+defm Csw : KeysomPredicates<FeatureVendorXKeysomNoCsw>;
+
 // F extension
 def FeatureVendorXKeysomNoFmadds : KeysomExtension<"Fmadds">;
 defm Fmadds : KeysomPredicates<FeatureVendorXKeysomNoFmadds>;
