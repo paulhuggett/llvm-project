@@ -512,6 +512,8 @@ def C_FLDSP  : CStackLoad<0b001, "c.fldsp", FPR64, uimm9_lsb000>,
   let Inst{4-2} = imm{8-6};
 }
 
+// *PBH*: Begin added HasVendorXKeysomClwsp predicate
+let Predicates = [HasStdExtCOrZca, HasVendorXKeysomClwsp] in {
 def C_LWSP : CStackLoad<0b010, "c.lwsp", GPRNoX0, uimm8_lsb00>,
              Sched<[WriteLDW, ReadMemBase]> {
   let Inst{3-2} = imm{7-6};
@@ -522,6 +524,8 @@ def C_LWSP_INX : CStackLoad<0b010, "c.lwsp", GPRF32NoX0, uimm8_lsb00>,
                  Sched<[WriteLDW, ReadMemBase]> {
   let Inst{3-2} = imm{7-6};
 }
+} // Predicates = [HasStdExtCOrZca, HasVendorXKeysomClwsp]
+// *PBH*: End added predicate
 
 let DecoderNamespace = "RISCV32Only_",
     Predicates = [HasStdExtCOrZcfOrZce, HasStdExtF, IsRV32] in
@@ -576,6 +580,8 @@ def C_FSDSP  : CStackStore<0b101, "c.fsdsp", FPR64, uimm9_lsb000>,
   let Inst{9-7}   = imm{8-6};
 }
 
+// *PBH*: Begin added HasVendorXKeysomCswsp predicate
+let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCswsp] in {
 def C_SWSP : CStackStore<0b110, "c.swsp", GPR, uimm8_lsb00>,
              Sched<[WriteSTW, ReadStoreData, ReadMemBase]> {
   let Inst{8-7}  = imm{7-6};
@@ -586,6 +592,8 @@ def C_SWSP_INX : CStackStore<0b110, "c.swsp", GPRF32, uimm8_lsb00>,
                  Sched<[WriteSTW, ReadStoreData, ReadMemBase]> {
   let Inst{8-7}  = imm{7-6};
 }
+} // Predicates = [HasStdExtCOrZca, HasVendorXKeysomCswsp]
+// *PBH*: End added predicate
 
 let DecoderNamespace = "RISCV32Only_",
     Predicates = [HasStdExtCOrZcfOrZce, HasStdExtF, IsRV32] in
@@ -724,8 +732,14 @@ let EmitPriority = 0 in {
 let Predicates = [HasStdExtCOrZca] in {
 def : InstAlias<"c.lw $rd, (${rs1})", (C_LW GPRC:$rd, GPRCMem:$rs1, 0)>;
 def : InstAlias<"c.sw $rs2, (${rs1})", (C_SW GPRC:$rs2, GPRCMem:$rs1, 0)>;
+// *PBH*: Begin added HasVendorXKeysomClwsp predicate
+let Predicates = [HasStdExtCOrZca, HasVendorXKeysomClwsp] in {
 def : InstAlias<"c.lwsp $rd, (${rs1})", (C_LWSP GPRNoX0:$rd, SPMem:$rs1, 0)>;
+}
+// *PBH*: Begin added HasVendorXKeysomClwsp predicate
+let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCswsp] in {
 def : InstAlias<"c.swsp $rs2, (${rs1})", (C_SWSP GPRNoX0:$rs2, SPMem:$rs1, 0)>;
+}
 }
 
 let Predicates = [HasStdExtCOrZca, IsRV64] in {
