@@ -495,12 +495,15 @@ def C_ADDW : CA_ALU<0b100111, 0b01, "c.addw">,
              Sched<[WriteIALU32, ReadIALU32, ReadIALU32]>;
 }
 
+// *PBH*: Begin added predicate HasVendorXKeysomCj
+let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCj] in {
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def C_J : RVInst16CJ<0b101, 0b01, (outs), (ins simm12_lsb0:$offset),
                      "c.j", "$offset">, Sched<[WriteJmp]> {
   let isBranch = 1;
   let isTerminator=1;
   let isBarrier=1;
+}
 }
 
 def C_BEQZ : Bcz<0b110, "c.beqz">, Sched<[WriteJmp, ReadJmp]>;
@@ -1010,6 +1013,8 @@ def : CompressPat<(ADDW GPRC:$rs1, GPRC:$rs2, GPRC:$rs1),
 } // Predicates = [HasStdExtCOrZca, IsRV64]
 
 let Predicates = [HasStdExtCOrZca] in {
+// *PBH: Begin added HasVendorXKeysomCj predicate
+let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCj] in
 def : CompressPat<(JAL X0, simm12_lsb0:$offset),
                   (C_J simm12_lsb0:$offset)>;
 def : CompressPat<(BEQ GPRC:$rs1, X0, simm9_lsb0:$imm),
