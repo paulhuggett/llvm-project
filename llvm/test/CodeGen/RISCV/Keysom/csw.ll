@@ -1,7 +1,7 @@
 ; RUN: llc -mtriple=riscv32 -mattr=+c -riscv-no-aliases < %s \
 ; RUN:   | FileCheck -check-prefix=RV32IC %s
 
-; RUN: llc -mtriple=riscv32 -mattr=+c -riscv-no-aliases -mattr=+xkeysonnocsw < %s \
+; RUN: llc -mtriple=riscv32 -mattr=+c -riscv-no-aliases -mattr=+xkeysomnocsw < %s \
 ; RUN:   | FileCheck -check-prefix=RV32IC_NOCSW %s
 
 define void @store(i32 %a, ptr %b) nounwind {
