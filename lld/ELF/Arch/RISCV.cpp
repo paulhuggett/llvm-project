@@ -729,6 +729,10 @@ void elf::initSymbolAnchors(Ctx &ctx) {
   }
 }
 
+// *PBH*: Begin added forward declaration.
+static Ctx::KeysomFeatures const *getKeysomFeatures(Ctx &ctx);
+// *PBH*: End added.
+
 // Relax R_RISCV_CALL/R_RISCV_CALL_PLT auipc+jalr to c.j, c.jal, or jal.
 static void relaxCall(Ctx &ctx, const InputSection &sec, size_t i, uint64_t loc,
                       Relocation &r, uint32_t &remove) {
@@ -740,7 +744,8 @@ static void relaxCall(Ctx &ctx, const InputSection &sec, size_t i, uint64_t loc,
       (r.expr == R_PLT_PC ? sym.getPltVA(ctx) : sym.getVA(ctx)) + r.addend;
   const int64_t displace = dest - loc;
 
-  if (rvc && isInt<12>(displace) && rd == 0) {
+  // *PBH*: Added call to getKeysomFeatures().
+  if (rvc && isInt<12>(displace) && rd == 0 && !getKeysomFeatures(ctx)->nocj) {
     sec.relaxAux->relocTypes[i] = R_RISCV_RVC_JUMP;
     sec.relaxAux->writes.push_back(0xa001); // c.j
     remove = 6;
@@ -1078,6 +1083,42 @@ public:
   size_t size = 0;
 };
 } // namespace
+
+// *PBH*: Begin added.
+// This function caches the collection of disabled instructions.
+static Ctx::KeysomFeatures const *getKeysomFeatures(Ctx &ctx) {
+  if (ctx.riscvIsaInfo) {
+    return ctx.riscvIsaInfo.get();
+  }
+  ctx.riscvIsaInfo = std::make_unique<Ctx::KeysomFeatures>();
+
+  const auto attrPos =
+      std::find_if(std::begin(ctx.inputSections), std::end(ctx.inputSections),
+                   [](const InputSectionBase *const sec) {
+                     return sec->type == SHT_RISCV_ATTRIBUTES;
+                   });
+  if (attrPos == std::end(ctx.inputSections)) {
+    return ctx.riscvIsaInfo.get();
+  }
+
+  if (auto *const attrSec = dyn_cast<RISCVAttributesSection>(*attrPos)) {
+    if (const auto archPos = attrSec->strAttr.find(RISCVAttrs::ARCH);
+        archPos != attrSec->strAttr.end()) {
+      auto maybeInfo = RISCVISAInfo::parseNormalizedArchString(archPos->second);
+      if (!maybeInfo) {
+        Err(ctx) << *attrPos << ": " << archPos->second << ": "
+                 << maybeInfo.takeError();
+        return ctx.riscvIsaInfo.get();
+      }
+
+      RISCVISAInfo &info = **maybeInfo;
+      ctx.riscvIsaInfo->nocj = info.hasExtension("xkeysomnocj");
+      ctx.riscvIsaInfo->nocjal = info.hasExtension("xkeysomnocjal");
+    }
+  }
+  return ctx.riscvIsaInfo.get();
+}
+// *PBH*: End added
 
 static void mergeArch(Ctx &ctx, RISCVISAUtils::OrderedExtensionMap &mergedExts,
                       unsigned &mergedXlen, const InputSectionBase *sec,

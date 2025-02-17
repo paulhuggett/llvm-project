@@ -699,6 +699,16 @@ struct Ctx : CommonLinkerContext {
   llvm::raw_fd_ostream openAuxiliaryFile(llvm::StringRef, std::error_code &);
 
   ArrayRef<uint8_t> aarch64PauthAbiCoreInfo;
+
+  // *PBH*: Begin added.
+  // This struct caches the collection of disabled instructions as described
+  // by the merged RISC-V attributes section.
+  struct KeysomFeatures {
+    unsigned nocj : 1;
+    unsigned nocjal : 1;
+  };
+  std::unique_ptr<KeysomFeatures> riscvIsaInfo;
+  // *PBH*: End added.
 };
 
 // The first two elements of versionDefinitions represent VER_NDX_LOCAL and
