@@ -715,7 +715,7 @@ void elf::initSymbolAnchors(Ctx &ctx) {
 }
 
 // *PBH*: Begin added forward declaration.
-static Ctx::KeysomFeatures const *getKeysomFeatures(Ctx &ctx);
+static const Ctx::KeysomFeatures &getKeysomFeatures(Ctx &ctx);
 // *PBH*: End added.
 
 // Relax R_RISCV_CALL/R_RISCV_CALL_PLT auipc+jalr to c.j, c.jal, or jal.
@@ -729,13 +729,13 @@ static void relaxCall(Ctx &ctx, const InputSection &sec, size_t i, uint64_t loc,
       (r.expr == R_PLT_PC ? sym.getPltVA(ctx) : sym.getVA(ctx)) + r.addend;
   const int64_t displace = dest - loc;
 
-  // *PBH*: Added call to getKeysomFeatures().
-  if (rvc && isInt<12>(displace) && rd == 0 && !getKeysomFeatures(ctx)->nocj) {
+  // *PBH*: Begin add calls to getKeysomFeatures().
+  if (rvc && isInt<12>(displace) && rd == 0 && !getKeysomFeatures(ctx).nocj) {
     sec.relaxAux->relocTypes[i] = R_RISCV_RVC_JUMP;
     sec.relaxAux->writes.push_back(0xa001); // c.j
     remove = 6;
-  } else if (rvc && isInt<12>(displace) && rd == X_RA &&
-             !ctx.arg.is64) { // RV32C only
+  } else if (rvc && isInt<12>(displace) && rd == X_RA && !ctx.arg.is64 &&
+             !getKeysomFeatures(ctx).nocjal) { // RV32C only
     sec.relaxAux->relocTypes[i] = R_RISCV_RVC_JUMP;
     sec.relaxAux->writes.push_back(0x2001); // c.jal
     remove = 6;
@@ -744,6 +744,7 @@ static void relaxCall(Ctx &ctx, const InputSection &sec, size_t i, uint64_t loc,
     sec.relaxAux->writes.push_back(0x6f | rd << 7); // jal
     remove = 4;
   }
+  // *PBH*: End add calls to getKeysomFeatures().
 }
 
 // Relax local-exec TLS when hi20 is zero.
@@ -1050,11 +1051,11 @@ public:
 
 // *PBH*: Begin added.
 // This function caches the collection of disabled instructions.
-static Ctx::KeysomFeatures const *getKeysomFeatures(Ctx &ctx) {
+static const Ctx::KeysomFeatures &getKeysomFeatures(Ctx &ctx) {
   if (ctx.riscvIsaInfo) {
-    return ctx.riscvIsaInfo.get();
+    return *ctx.riscvIsaInfo;
   }
-  ctx.riscvIsaInfo = std::make_unique<Ctx::KeysomFeatures>();
+  ctx.riscvIsaInfo.emplace();
 
   const auto attrPos =
       std::find_if(std::begin(ctx.inputSections), std::end(ctx.inputSections),
@@ -1062,7 +1063,7 @@ static Ctx::KeysomFeatures const *getKeysomFeatures(Ctx &ctx) {
                      return sec->type == SHT_RISCV_ATTRIBUTES;
                    });
   if (attrPos == std::end(ctx.inputSections)) {
-    return ctx.riscvIsaInfo.get();
+    return *ctx.riscvIsaInfo;
   }
 
   if (auto *const attrSec = dyn_cast<RISCVAttributesSection>(*attrPos)) {
@@ -1072,15 +1073,17 @@ static Ctx::KeysomFeatures const *getKeysomFeatures(Ctx &ctx) {
       if (!maybeInfo) {
         Err(ctx) << *attrPos << ": " << archPos->second << ": "
                  << maybeInfo.takeError();
-        return ctx.riscvIsaInfo.get();
+        return *ctx.riscvIsaInfo;
       }
 
-      RISCVISAInfo &info = **maybeInfo;
+      const RISCVISAInfo &info = **maybeInfo;
       ctx.riscvIsaInfo->nocj = info.hasExtension("xkeysomnocj");
       ctx.riscvIsaInfo->nocjal = info.hasExtension("xkeysomnocjal");
+      ctx.riscvIsaInfo->nocjr = info.hasExtension("xkeysomnonocjr");
+      ctx.riscvIsaInfo->nocjalr = info.hasExtension("xkeysomnocjalr");
     }
   }
-  return ctx.riscvIsaInfo.get();
+  return *ctx.riscvIsaInfo;
 }
 // *PBH*: End added
 
