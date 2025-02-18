@@ -4,7 +4,7 @@
 ; RUN: llc -mtriple=riscv32 -mattr=+c -riscv-no-aliases -mattr=+xkeysomnocbnez < %s \
 ; RUN:   | FileCheck -check-prefix=RV32IC_NOCBNEZ %s
 
-define i32 @ne_medium_ledge_pos(i32 %in0) minsize {
+define i32 @f(i32 %in0) minsize {
 ; RV32IC: c.bnez
 ; RV32IC_NOCBNEZ-NOT: c.bnez
 entry:
