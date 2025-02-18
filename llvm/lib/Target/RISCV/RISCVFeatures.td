@@ -1228,6 +1228,12 @@ defm Cli : KeysomPredicates<FeatureVendorXKeysomNoCli>;
 def FeatureVendorXKeysomNoClui : KeysomExtension<"c.lui">;
 defm Clui : KeysomPredicates<FeatureVendorXKeysomNoClui>;
 
+def FeatureVendorXKeysomNoCaddi : KeysomExtension<"c.addi">;
+defm Caddi : KeysomPredicates<FeatureVendorXKeysomNoCaddi>;
+
+def FeatureVendorXKeysomNoCaddi16sp : KeysomExtension<"c.addi16sp">;
+defm Caddi16sp : KeysomPredicates<FeatureVendorXKeysomNoCaddi16sp>;
+
 // F extension
 def FeatureVendorXKeysomNoFmadds : KeysomExtension<"Fmadds">;
 defm Fmadds : KeysomPredicates<FeatureVendorXKeysomNoFmadds>;
