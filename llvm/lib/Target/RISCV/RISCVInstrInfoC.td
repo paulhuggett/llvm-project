@@ -441,10 +441,14 @@ def C_ADDIW : RVInst16CI<0b001, 0b01, (outs GPRNoX0:$rd_wb),
   let Constraints = "$rd = $rd_wb";
 }
 
+// *PBH*: Begin added predicate HasVendorXKeysomCli
+let Predicates = [HasStdExtCOrZca, IsRV32, HasVendorXKeysomCli] in {
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def C_LI : RVInst16CI<0b010, 0b01, (outs GPRNoX0:$rd), (ins simm6:$imm),
                       "c.li", "$rd, $imm">,
            Sched<[WriteIALU]>;
+}
+// *PBH*: End added predicate
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def C_ADDI16SP : RVInst16CI<0b011, 0b01, (outs SP:$rd_wb),
@@ -460,11 +464,15 @@ def C_ADDI16SP : RVInst16CI<0b011, 0b01, (outs SP:$rd_wb),
   let Inst{2} = imm{5};
 }
 
+// *PBH*: Begin added predicate HasVendorXKeysomClui
+let Predicates = [HasStdExtCOrZca, IsRV32, HasVendorXKeysomClui] in {
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def C_LUI : RVInst16CI<0b011, 0b01, (outs GPRNoX0X2:$rd),
                        (ins c_lui_imm:$imm),
                        "c.lui", "$rd, $imm">,
             Sched<[WriteIALU]>;
+}
+// *PBH*: End added predicate
 
 def C_SRLI : Shift_right<0b00, "c.srli">,
              Sched<[WriteShiftImm, ReadShiftImm]>;
@@ -664,6 +672,8 @@ def C_ADDI_HINT_IMM_ZERO : RVInst16CI<0b000, 0b01, (outs GPRNoX0:$rd_wb),
   let DecoderMethod = "decodeRVCInstrRdRs1ImmZero";
 }
 
+// *PBH*: Added HasVendorXKeysomCli predicate
+let Predicates = [HasStdExtCOrZca, HasRVCHints, HasVendorXKeysomCli] in
 def C_LI_HINT : RVInst16CI<0b010, 0b01, (outs GPRX0:$rd), (ins simm6:$imm),
                            "c.li", "$rd, $imm">,
                 Sched<[WriteIALU]> {
@@ -671,6 +681,8 @@ def C_LI_HINT : RVInst16CI<0b010, 0b01, (outs GPRX0:$rd), (ins simm6:$imm),
   let DecoderMethod = "decodeRVCInstrRdSImm6";
 }
 
+// *PBH*: Added HasVendorXKeysomClui predicate
+let Predicates = [HasStdExtCOrZca, HasRVCHints, HasVendorXKeysomClui] in
 def C_LUI_HINT : RVInst16CI<0b011, 0b01, (outs GPRX0:$rd),
                             (ins c_lui_imm:$imm),
                             "c.lui", "$rd, $imm">,
@@ -685,7 +697,7 @@ def C_MV_HINT : RVInst16CR<0b1000, 0b10, (outs GPRX0:$rs1), (ins GPRNoX0:$rs2),
   let DecoderMethod = "decodeRVCInstrRdRs2";
 }
 
-// *PBH: Begin added HasVendorXKeysomCadd
+// *PBH*: Begin added HasVendorXKeysomCadd
 let Predicates = [HasStdExtCOrZca, HasRVCHints, HasVendorXKeysomCadd] in {
 def C_ADD_HINT : RVInst16CR<0b1001, 0b10, (outs GPRX0:$rd),
                             (ins GPRX0:$rs1, GPRNoX0:$rs2),
@@ -696,7 +708,7 @@ def C_ADD_HINT : RVInst16CR<0b1001, 0b10, (outs GPRX0:$rd),
   let DecoderMethod = "decodeRVCInstrRdRs1Rs2";
 }
 } // Predicates = [HasStdExtCOrZca, HasRVCHints, HasVendorXKeysomCadd]
-// *PBH: End added HasVendorXKeysomCadd override
+// *PBH*: End added HasVendorXKeysomCadd override
 
 def C_SLLI_HINT : RVInst16CI<0b000, 0b10, (outs GPRX0:$rd_wb),
                              (ins GPRX0:$rd, uimmlog2xlennonzero:$imm),
@@ -975,10 +987,14 @@ def : CompressPat<(ADDIW GPRNoX0:$rs1, GPRNoX0:$rs1, simm6:$imm),
 } // Predicates = [HasStdExtCOrZca, IsRV64]
 
 let Predicates = [HasStdExtCOrZca] in {
+// *PBH*: Added HasVendorXKeysomCli predicate
+let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCli] in
 def : CompressPat<(ADDI GPRNoX0:$rd, X0, simm6:$imm),
                   (C_LI GPRNoX0:$rd, simm6:$imm)>;
 def : CompressPat<(ADDI X2, X2, simm10_lsb0000nonzero:$imm),
                   (C_ADDI16SP X2, simm10_lsb0000nonzero:$imm)>;
+// *PBH*: Added HasVendorXKeysomClui predicate
+let Predicates = [HasStdExtCOrZca, HasVendorXKeysomClui] in
 def : CompressPat<(LUI GPRNoX0X2:$rd, c_lui_imm:$imm),
                   (C_LUI GPRNoX0X2:$rd, c_lui_imm:$imm)>;
 def : CompressPat<(SRLI GPRC:$rs1, GPRC:$rs1, uimmlog2xlennonzero:$imm),
@@ -1007,9 +1023,13 @@ def : CompressPat<(AND GPRC:$rs1, GPRC:$rs2, GPRC:$rs1),
 } // Predicates = [HasStdExtCOrZca]
 
 let Predicates = [HasStdExtCOrZca, IsRV64] in {
+// *PBH*: Begin added HasVendorXKeysomCli predicate
+let Predicates = [HasStdExtCOrZca, IsRV64, HasVendorXKeysomCli] in {
 let isCompressOnly = true in
 def : CompressPat<(ADDIW GPRNoX0:$rd, X0, simm6:$imm),
                   (C_LI GPRNoX0:$rd, simm6:$imm)>;
+}
+// *PBH*: End added HasVendorXKeysomCli predicate
 def : CompressPat<(SUBW GPRC:$rs1, GPRC:$rs1, GPRC:$rs2),
                   (C_SUBW GPRC:$rs1, GPRC:$rs2)>;
 def : CompressPat<(ADDW GPRC:$rs1, GPRC:$rs1, GPRC:$rs2),

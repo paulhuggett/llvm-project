@@ -1222,6 +1222,12 @@ defm Cbeqz : KeysomPredicates<FeatureVendorXKeysomNoCbeqz>;
 def FeatureVendorXKeysomNoCbnez : KeysomExtension<"c.bnez">;
 defm Cbnez : KeysomPredicates<FeatureVendorXKeysomNoCbnez>;
 
+def FeatureVendorXKeysomNoCli : KeysomExtension<"c.li">;
+defm Cli : KeysomPredicates<FeatureVendorXKeysomNoCli>;
+
+def FeatureVendorXKeysomNoClui : KeysomExtension<"c.lui">;
+defm Clui : KeysomPredicates<FeatureVendorXKeysomNoClui>;
+
 // F extension
 def FeatureVendorXKeysomNoFmadds : KeysomExtension<"Fmadds">;
 defm Fmadds : KeysomPredicates<FeatureVendorXKeysomNoFmadds>;
