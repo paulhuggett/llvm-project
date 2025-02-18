@@ -1,31 +1,30 @@
 # REQUIRES: riscv
 ## Relax R_RISCV_CALL and R_RISCV_CALL_PLT.
-## Features +c and +c,+xkeysomnocj
 
 # RUN: rm -rf %t && split-file %s %t && cd %t
 
-## RV32 +c
+## RVC +c
 # RUN: llvm-mc -filetype=obj -triple=riscv32 -mattr=+c,+relax a.s -o a.32c.o
 # RUN: llvm-mc -filetype=obj -triple=riscv32 -mattr=+c,+relax b.s -o b.32c.o
 # RUN: ld.lld -shared -soname=b.so b.32c.o -o b.32c.so
-# RUN: ld.lld -T lds a.32c.o b.32c.o -o 32c
+# RUN: ld.lld -T lds a.32c.o b.32c.so -o 32c
 # RUN: llvm-objdump -td --no-show-raw-insn -M no-aliases 32c | FileCheck %s --check-prefixes=RVC32
 
-## RV32 +c +xkeysomnocj
-# RUN: llvm-mc -filetype=obj -triple=riscv32 -mattr=+c,+relax --defsym=nocj=1 a.s -o a.32c.nocj.o
-# RUN: llvm-mc -filetype=obj -triple=riscv32 -mattr=+c,+relax --defsym=nocj=1 b.s -o b.32c.nocj.o
-# RUN: ld.lld -shared -soname=b.so b.32c.nocj.o -o b.32c.nocj.so
-# RUN: ld.lld -T lds a.32c.nocj.o b.32c.nocj.so -o 32c.nocj
-# RUN: llvm-objdump -td --no-show-raw-insn -M no-aliases 32c.nocj | FileCheck %s --check-prefixes=RVC32_NOCJ
+## RV32 +c +xkeysomnocjal
+# RUN: llvm-mc -filetype=obj -triple=riscv32 -mattr=+c,+relax --defsym=nocjal=1 a.s -o a.32c.o
+# RUN: llvm-mc -filetype=obj -triple=riscv32 -mattr=+c,+relax --defsym=nocjal=1 b.s -o b.32c.o
+# RUN: ld.lld -shared -soname=b.so b.32c.o -o b.32c.so
+# RUN: ld.lld -T lds a.32c.o b.32c.so -o 32c
+# RUN: llvm-objdump -td --no-show-raw-insn -M no-aliases 32c | FileCheck %s --check-prefixes=RVC32_NOCJAL
 
-# RVC32:          c.j {{.*}} <{{.*}}>
-# RVC32_NOCJ-NOT: c.j {{.*}} <{{.*}}>
+# RVC32:            c.jal {{.*}} <{{.*}}>
+# RVC32_NOCJAL-NOT: c.jal {{.*}} <{{.*}}>
 
 #--- a.s
-  /* Add the xkeysomnocj (disable c.j) feature is selected by "nocj=1" on the command-line */
-  .ifdef nocj
-  .option arch, +xkeysomnocj
-  .attribute Tag_arch, "rv32ic_xkeysomnocj"
+  /* Add the xkeysomnocjal (disable c.jal) feature is selected by "nocjal=1" on the command-line */
+  .ifdef nocjal
+  .option arch, +xkeysomnocjal
+  .attribute Tag_arch, "rv32ic_xkeysomnocjal"
   .else
   .attribute Tag_arch, "rv32ic"
   .endif
@@ -34,12 +33,13 @@
 _start:
   tail a@plt
   jump a, t0
-.balign 16
-  call a   # rv32c: c.jal; rv64c: jal
-  call bar # PLT call can be relaxed. rv32c: c.jal; rv64c: jal
+  .balign 16
+  call a          # rv32c: c.jal; rv64c: jal
+  call bar        # PLT call can be relaxed. rv32c: c.jal; rv64c: jal
 
 a:
   ret
+  .size _start, . - _start
 _start_end:
 
   .section .mid,"ax",@progbits

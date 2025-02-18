@@ -424,11 +424,14 @@ let hasSideEffects = 0, mayLoad = 0, mayStore = 0, isCodeGenOnly = 0,
 def PseudoC_ADDI_NOP : Pseudo<(outs GPRX0:$rd), (ins GPRX0:$rs1, immzero:$imm),
                               [], "c.addi", "$rd, $imm">;
 
+// *PBH*: Begin added predicate HasVendorXKeysomCjal
+let Predicates = [HasStdExtCOrZca, IsRV32, HasVendorXKeysomCjal] in {
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0, isCall = 1,
-    DecoderNamespace = "RISCV32Only_", Defs = [X1],
-    Predicates = [HasStdExtCOrZca, IsRV32]  in
+    DecoderNamespace = "RISCV32Only_", Defs = [X1] in
 def C_JAL : RVInst16CJ<0b001, 0b01, (outs), (ins simm12_lsb0:$offset),
                        "c.jal", "$offset">, Sched<[WriteJal]>;
+}
+// *PBH*: End added predicate
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0,
     Predicates = [HasStdExtCOrZca, IsRV64] in
@@ -551,6 +554,8 @@ def C_LDSP : CStackLoad<0b011, "c.ldsp", GPRNoX0, uimm9_lsb000>,
   let Inst{4-2} = imm{8-6};
 }
 
+// *PBH*: Begin added HasVendorXKeysomCjr predicate
+let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCjr] in {
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def C_JR : RVInst16CR<0b1000, 0b10, (outs), (ins GPRNoX0:$rs1),
                       "c.jr", "$rs1">, Sched<[WriteJalr, ReadJalr]> {
@@ -558,6 +563,8 @@ def C_JR : RVInst16CR<0b1000, 0b10, (outs), (ins GPRNoX0:$rs1),
   let isTerminator = 1;
   let rs2 = 0;
 }
+}
+// *PBH*: End added HasVendorXKeysomCjr predicate
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0, isMoveReg = 1,
     isAsCheapAsAMove = 1 in
@@ -568,10 +575,14 @@ def C_MV : RVInst16CR<0b1000, 0b10, (outs GPRNoX0:$rs1), (ins GPRNoX0:$rs2),
 let rs1 = 0, rs2 = 0, hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def C_EBREAK : RVInst16CR<0b1001, 0b10, (outs), (ins), "c.ebreak", "">, Sched<[]>;
 
+// *PBH*: Begin added predicate HasVendorXKeysomCjal
+let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCjalr] in {
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0,
     isCall=1, Defs=[X1], rs2 = 0 in
 def C_JALR : RVInst16CR<0b1001, 0b10, (outs), (ins GPRNoX0:$rs1),
                         "c.jalr", "$rs1">, Sched<[WriteJalr, ReadJalr]>;
+}
+// *PBH*: End added predicate
 
 // *PBH*: Begin added HasVendorXKeysomCadd predicate
 let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCadd] in {
@@ -957,7 +968,8 @@ def : CompressPat<(ADDI GPRNoX0:$rs1, GPRNoX0:$rs1, simm6nonzero:$imm),
                   (C_ADDI GPRNoX0:$rs1, simm6nonzero:$imm)>;
 } // Predicates = [HasStdExtCOrZca]
 
-let Predicates = [HasStdExtCOrZca, IsRV32] in {
+// *PBH*: Added HasVendorXKeysomCJal predicate
+let Predicates = [HasStdExtCOrZca, IsRV32, HasVendorXKeysomCjal] in {
 def : CompressPat<(JAL X1, simm12_lsb0:$offset),
                   (C_JAL simm12_lsb0:$offset)>;
 } // Predicates = [HasStdExtCOrZca, IsRV32]
@@ -1060,6 +1072,8 @@ def : CompressPat<(LD GPRNoX0:$rd, SPMem:$rs1, uimm9_lsb000:$imm),
 } // Predicates = [HasStdExtCOrZca, IsRV64]
 
 let Predicates = [HasStdExtCOrZca] in {
+// *PBH*: Added HasVendorXKeysomCjr predicate around this block
+let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCjr] in
 def : CompressPat<(JALR X0, GPRNoX0:$rs1, 0),
                   (C_JR GPRNoX0:$rs1)>;
 let isCompressOnly = true in {
@@ -1072,10 +1086,13 @@ def : CompressPat<(ADDI GPRNoX0:$rs1, GPRNoX0:$rs2, 0),
                   (C_MV GPRNoX0:$rs1, GPRNoX0:$rs2)>;
 def : CompressPat<(EBREAK), (C_EBREAK)>;
 def : CompressPat<(UNIMP), (C_UNIMP)>;
+
+// *PBH*: Added HasVendorXKeysomCjalr predicate around this block
+let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCjalr] in
 def : CompressPat<(JALR X1, GPRNoX0:$rs1, 0),
                   (C_JALR GPRNoX0:$rs1)>;
 
-// *PBH: Begin added HasVendorXKeysomCadd predicate around this block
+// *PBH*: Begin added HasVendorXKeysomCadd predicate around this block
 let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCadd] in {
 def : CompressPat<(ADD GPRNoX0:$rs1, GPRNoX0:$rs1, GPRNoX0:$rs2),
                   (C_ADD GPRNoX0:$rs1, GPRNoX0:$rs2)>;
