@@ -446,7 +446,7 @@ def C_ADDIW : RVInst16CI<0b001, 0b01, (outs GPRNoX0:$rd_wb),
 }
 
 // *PBH*: Begin added predicate HasVendorXKeysomCli
-let Predicates = [HasStdExtCOrZca, IsRV32, HasVendorXKeysomCli] in {
+let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCli] in {
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def C_LI : RVInst16CI<0b010, 0b01, (outs GPRNoX0:$rd), (ins simm6:$imm),
                       "c.li", "$rd, $imm">,
@@ -473,7 +473,7 @@ def C_ADDI16SP : RVInst16CI<0b011, 0b01, (outs SP:$rd_wb),
 // *PBH*: End added predicate
 
 // *PBH*: Begin added predicate HasVendorXKeysomClui
-let Predicates = [HasStdExtCOrZca, IsRV32, HasVendorXKeysomClui] in {
+let Predicates = [HasStdExtCOrZca, HasVendorXKeysomClui] in {
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def C_LUI : RVInst16CI<0b011, 0b01, (outs GPRNoX0X2:$rd),
                        (ins c_lui_imm:$imm),
