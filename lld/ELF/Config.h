@@ -704,10 +704,12 @@ struct Ctx : CommonLinkerContext {
   // This struct caches the collection of disabled instructions as described
   // by the merged RISC-V attributes section.
   struct KeysomFeatures {
-    unsigned nocj : 1;
-    unsigned nocjal : 1;
+    uint8_t nocj : 1;
+    uint8_t nocjal : 1;
+    uint8_t nocjr : 1;
+    uint8_t nocjalr : 1;
   };
-  std::unique_ptr<KeysomFeatures> riscvIsaInfo;
+  std::optional<KeysomFeatures> riscvIsaInfo;
   // *PBH*: End added.
 };
 
