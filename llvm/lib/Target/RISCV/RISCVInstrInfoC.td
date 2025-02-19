@@ -618,8 +618,12 @@ def C_MV : RVInst16CR<0b1000, 0b10, (outs GPRNoX0:$rs1), (ins GPRNoX0:$rs2),
 }
 // *PBH*: End added HasVendorXKeysomCmv predicate
 
+// *PBH*: Begin added predicate HasVendorXKeysomCebreak
+let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCebreak] in {
 let rs1 = 0, rs2 = 0, hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def C_EBREAK : RVInst16CR<0b1001, 0b10, (outs), (ins), "c.ebreak", "">, Sched<[]>;
+}
+// *PBH*: End added predicate
 
 // *PBH*: Begin added predicate HasVendorXKeysomCjal
 let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCjalr] in {
@@ -1168,7 +1172,8 @@ def : CompressPat<(ADD GPRNoX0:$rs1, GPRNoX0:$rs2, X0),
 def : CompressPat<(ADDI GPRNoX0:$rs1, GPRNoX0:$rs2, 0),
                   (C_MV GPRNoX0:$rs1, GPRNoX0:$rs2)>;
 }
-// *PBH*: End HasVendorXKeysomCmv Predicate block
+// *PBH*: End HasVendorXKeysomCebreak Predicate block
+let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCebreak] in
 def : CompressPat<(EBREAK), (C_EBREAK)>;
 def : CompressPat<(UNIMP), (C_UNIMP)>;
 
