@@ -31,7 +31,8 @@ namespace llvm {
 class raw_ostream;
 class Triple;
 
-const unsigned MAX_SUBTARGET_WORDS = 5;
+// *PBH*: Increased MAX_SUBTARGET_WORDS
+const unsigned MAX_SUBTARGET_WORDS = 6;
 const unsigned MAX_SUBTARGET_FEATURES = MAX_SUBTARGET_WORDS * 64;
 
 /// Container class for subtarget features.
