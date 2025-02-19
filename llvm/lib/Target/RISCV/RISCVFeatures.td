@@ -1249,6 +1249,21 @@ defm Csrai : KeysomPredicates<FeatureVendorXKeysomNoCsrai>;
 def FeatureVendorXKeysomNoCandi : KeysomExtension<"c.andi">;
 defm Candi : KeysomPredicates<FeatureVendorXKeysomNoCandi>;
 
+def FeatureVendorXKeysomNoCmv : KeysomExtension<"c.mv">;
+defm Cmv : KeysomPredicates<FeatureVendorXKeysomNoCmv>;
+
+def FeatureVendorXKeysomNoCand : KeysomExtension<"c.and">;
+defm Cand : KeysomPredicates<FeatureVendorXKeysomNoCand>;
+
+def FeatureVendorXKeysomNoCor : KeysomExtension<"c.or">;
+defm Cor : KeysomPredicates<FeatureVendorXKeysomNoCor>;
+
+def FeatureVendorXKeysomNoCxor : KeysomExtension<"c.xor">;
+defm Cxor : KeysomPredicates<FeatureVendorXKeysomNoCxor>;
+
+def FeatureVendorXKeysomNoCsub : KeysomExtension<"c.sub">;
+defm Csub : KeysomPredicates<FeatureVendorXKeysomNoCsub>;
+
 // F extension
 def FeatureVendorXKeysomNoFmadds : KeysomExtension<"Fmadds">;
 defm Fmadds : KeysomPredicates<FeatureVendorXKeysomNoFmadds>;
