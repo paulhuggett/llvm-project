@@ -1264,6 +1264,9 @@ defm Cxor : KeysomPredicates<FeatureVendorXKeysomNoCxor>;
 def FeatureVendorXKeysomNoCsub : KeysomExtension<"c.sub">;
 defm Csub : KeysomPredicates<FeatureVendorXKeysomNoCsub>;
 
+def FeatureVendorXKeysomNoCebreak : KeysomExtension<"c.ebreak">;
+defm Cebreak : KeysomPredicates<FeatureVendorXKeysomNoCebreak>;
+
 // F extension
 def FeatureVendorXKeysomNoFmadds : KeysomExtension<"Fmadds">;
 defm Fmadds : KeysomPredicates<FeatureVendorXKeysomNoFmadds>;
