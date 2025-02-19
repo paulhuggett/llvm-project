@@ -1234,6 +1234,21 @@ defm Caddi : KeysomPredicates<FeatureVendorXKeysomNoCaddi>;
 def FeatureVendorXKeysomNoCaddi16sp : KeysomExtension<"c.addi16sp">;
 defm Caddi16sp : KeysomPredicates<FeatureVendorXKeysomNoCaddi16sp>;
 
+def FeatureVendorXKeysomNoCaddi4spn : KeysomExtension<"c.addi4spn">;
+defm Caddi4spn : KeysomPredicates<FeatureVendorXKeysomNoCaddi4spn>;
+
+def FeatureVendorXKeysomNoCslli : KeysomExtension<"c.slli">;
+defm Cslli : KeysomPredicates<FeatureVendorXKeysomNoCslli>;
+
+def FeatureVendorXKeysomNoCsrli : KeysomExtension<"c.srli">;
+defm Csrli : KeysomPredicates<FeatureVendorXKeysomNoCsrli>;
+
+def FeatureVendorXKeysomNoCsrai : KeysomExtension<"c.srai">;
+defm Csrai : KeysomPredicates<FeatureVendorXKeysomNoCsrai>;
+
+def FeatureVendorXKeysomNoCandi : KeysomExtension<"c.andi">;
+defm Candi : KeysomPredicates<FeatureVendorXKeysomNoCandi>;
+
 // F extension
 def FeatureVendorXKeysomNoFmadds : KeysomExtension<"Fmadds">;
 defm Fmadds : KeysomPredicates<FeatureVendorXKeysomNoFmadds>;
