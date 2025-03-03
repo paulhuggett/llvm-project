@@ -758,6 +758,8 @@ let isReMaterializable = 1, isAsCheapAsAMove = 1 in
 def ADDI  : ALU_ri<0b000, "addi">;
 
 let IsSignExtendingOpW = 1 in {
+// *PBH*: Added HasVendorXKeysomSlti predicate
+let Predicates = [HasVendorXKeysomSlti] in
 def SLTI  : ALU_ri<0b010, "slti">;
 def SLTIU : ALU_ri<0b011, "sltiu">;
 }
@@ -1184,6 +1186,8 @@ def : InstAlias<"srlw $rd, $rs1, $shamt",
 def : InstAlias<"sraw $rd, $rs1, $shamt",
                 (SRAIW  GPR:$rd, GPR:$rs1, uimm5:$shamt)>;
 } // Predicates = [IsRV64]
+// *PBH*: Added HasVendorXKeysomSlti predicate
+let Predicates = [HasVendorXKeysomSlti] in
 def : InstAlias<"slt $rd, $rs1, $imm12",
                 (SLTI  GPR:$rd, GPR:$rs1, simm12:$imm12)>;
 def : InstAlias<"sltu $rd, $rs1, $imm12",
@@ -1597,6 +1601,8 @@ def : Pat<(riscv_add_lo GPR:$src, tglobaltlsaddr:$lo),
 /// Setcc
 
 def : PatGprGpr<setlt, SLT>;
+// *PBH*: Added HasVendorXKeysomSlti predicate
+let Predicates = [HasVendorXKeysomSlti] in
 def : PatGprSimm12<setlt, SLTI>;
 def : PatGprGpr<setult, SLTU>;
 def : PatGprSimm12<setult, SLTIU>;
