@@ -90,8 +90,14 @@ static void generateInstSeqImpl(int64_t Val, const MCSubtargetInfo &STI,
     int64_t Hi20 = ((Val + 0x800) >> 12) & 0xFFFFF;
     int64_t Lo12 = SignExtend64<12>(Val);
 
-    if (Hi20)
-      Res.emplace_back(RISCV::LUI, Hi20);
+    if (Hi20) {
+      if (STI.hasFeature(RISCV::FeatureVendorXKeysomNoLui)) {
+        Res.emplace_back(RISCV::ADDI, Lo12);
+        Res.emplace_back(RISCV::SLLI, 12);
+      } else {
+        Res.emplace_back(RISCV::LUI, Hi20);
+      }
+    }
 
     if (Lo12 || Hi20 == 0) {
       unsigned AddiOpc = RISCV::ADDI;

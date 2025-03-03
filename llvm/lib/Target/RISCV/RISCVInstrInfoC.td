@@ -1038,8 +1038,8 @@ def : CompressPat<(ADDI GPRNoX0:$rd, X0, simm6:$imm),
 let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCaddi16sp] in
 def : CompressPat<(ADDI X2, X2, simm10_lsb0000nonzero:$imm),
                   (C_ADDI16SP X2, simm10_lsb0000nonzero:$imm)>;
-// *PBH*: Added HasVendorXKeysomClui predicate
-let Predicates = [HasStdExtCOrZca, HasVendorXKeysomClui] in
+// *PBH*: Added HasVendorXKeysomLui & HasVendorXKeysomClui predicate
+let Predicates = [HasStdExtCOrZca, HasVendorXKeysomLui, HasVendorXKeysomClui] in
 def : CompressPat<(LUI GPRNoX0X2:$rd, c_lui_imm:$imm),
                   (C_LUI GPRNoX0X2:$rd, c_lui_imm:$imm)>;
 // *PBH*: Added HasVendorXKeysomCsrli predicate

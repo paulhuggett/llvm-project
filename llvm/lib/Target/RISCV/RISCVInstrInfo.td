@@ -711,10 +711,15 @@ class UnaryW_r<bits<12> imm12, bits<3> funct3, string opcodestr>
 //===----------------------------------------------------------------------===//
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in {
+
+// *PBH*: Begin added HasVendorXKeysomNoLui predicate
+let Predicates = [HasVendorXKeysomLui] in {
 let isReMaterializable = 1, isAsCheapAsAMove = 1,
     IsSignExtendingOpW = 1 in
 def LUI : RVInstU<OPC_LUI, (outs GPR:$rd), (ins uimm20_lui:$imm20),
                   "lui", "$rd, $imm20">, Sched<[WriteIALU]>;
+}
+// *PBH*: End added predicate
 
 def AUIPC : RVInstU<OPC_AUIPC, (outs GPR:$rd), (ins uimm20_auipc:$imm20),
                     "auipc", "$rd, $imm20">, Sched<[WriteIALU]>;
@@ -759,8 +764,11 @@ def SLTIU : ALU_ri<0b011, "sltiu">;
 
 let isReMaterializable = 1, isAsCheapAsAMove = 1 in {
 def XORI  : ALU_ri<0b100, "xori">;
+// *PBH*: Begin added HasVendorXKeysomOri predicate
+let Predicates = [HasVendorXKeysomOri] in
 def ORI   : ALU_ri<0b110, "ori">;
 }
+// *PBH*: End added
 
 def ANDI  : ALU_ri<0b111, "andi">;
 
@@ -1421,7 +1429,11 @@ def : PatGprGpr<add, ADD>;
 def : PatGprSimm12<add, ADDI>;
 def : PatGprGpr<sub, SUB>;
 def : PatGprGpr<or, OR>;
+// *PBH*: Begin added HasVendorXKeysomOri predicate
+let Predicates = [HasVendorXKeysomOri] in
 def : PatGprSimm12<or, ORI>;
+// *PBH*: End added predicate
+
 def : PatGprGpr<and, AND>;
 def : PatGprSimm12<and, ANDI>;
 def : PatGprGpr<xor, XOR>;
@@ -2129,6 +2141,8 @@ def : Pat<(binop_allwusers<srl> (sext_inreg GPR:$rs1, i32), uimm5:$shamt),
 def : Pat<(binop_allwusers<and> GPR:$rs1, 0xffffffff),
           (COPY GPR:$rs1)>;
 def : PatGprImm<binop_allwusers<and>, ANDI, u32simm12>;
+// *PBH*: Added the HasVendorXKeysomOri predicate
+let Predicates = [HasVendorXKeysomOri] in
 def : PatGprImm<binop_allwusers<or>,  ORI,  u32simm12>;
 def : PatGprImm<binop_allwusers<xor>, XORI, u32simm12>;
 
