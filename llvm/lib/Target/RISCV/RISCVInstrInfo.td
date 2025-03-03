@@ -683,6 +683,8 @@ let IsSignExtendingOpW = 1 in {
 // *PBH*: Added HasVendorXKeysomSlti predicate
 let Predicates = [HasVendorXKeysomSlti] in
 def SLTI  : ALU_ri<0b010, "slti">;
+// *PBH*: Added HasVendorXKeysomSltiu predicate
+let Predicates = [HasVendorXKeysomSltiu] in
 def SLTIU : ALU_ri<0b011, "sltiu">;
 }
 
@@ -950,6 +952,8 @@ def : InstAlias<"negw $rd, $rs",   (SUBW  GPR:$rd,      X0, GPR:$rs)>;
 def : InstAlias<"sext.w $rd, $rs", (ADDIW GPR:$rd, GPR:$rs,       0)>;
 } // Predicates = [IsRV64]
 
+// *PBH*: Added HasVendorXKeysomSltiu predicate
+let Predicates = [HasVendorXKeysomSltiu] in
 def : InstAlias<"seqz $rd, $rs", (SLTIU GPR:$rd, GPR:$rs,       1)>;
 def : InstAlias<"snez $rd, $rs", (SLTU  GPR:$rd,      X0, GPR:$rs)>;
 def : InstAlias<"sltz $rd, $rs", (SLT   GPR:$rd, GPR:$rs,      X0)>;
@@ -1110,6 +1114,8 @@ def : InstAlias<"sraw $rd, $rs1, $shamt",
 let Predicates = [HasVendorXKeysomSlti] in
 def : InstAlias<"slt $rd, $rs1, $imm12",
                 (SLTI  GPR:$rd, GPR:$rs1, simm12:$imm12)>;
+// *PBH*: Added HasVendorXKeysomSltiu predicate
+let Predicates = [HasVendorXKeysomSltiu] in
 def : InstAlias<"sltu $rd, $rs1, $imm12",
                 (SLTIU  GPR:$rd, GPR:$rs1, simm12:$imm12)>;
 }
@@ -1516,6 +1522,8 @@ def : PatGprGpr<setlt, SLT>;
 let Predicates = [HasVendorXKeysomSlti] in
 def : PatGprSimm12<setlt, SLTI>;
 def : PatGprGpr<setult, SLTU>;
+// *PBH*: Added HasVendorXKeysomSltiu predicate
+let Predicates = [HasVendorXKeysomSltiu] in
 def : PatGprSimm12<setult, SLTIU>;
 
 // RISC-V doesn't have general instructions for integer setne/seteq, but we can
@@ -1527,8 +1535,12 @@ def riscv_seteq : ComplexPattern<XLenVT, 1, "selectSETEQ", [setcc]>;
 
 // Define pattern expansions for setcc operations that aren't directly
 // handled by a RISC-V instruction.
+// *PBH*: Added HasVendorXKeysomSltiu predicate
+let Predicates = [HasVendorXKeysomSltiu] in
 def : Pat<(riscv_seteq (XLenVT GPR:$rs1)), (SLTIU GPR:$rs1, 1)>;
 def : Pat<(riscv_setne (XLenVT GPR:$rs1)), (SLTU (XLenVT X0), GPR:$rs1)>;
+// *PBH*: Added HasVendorXKeysomSltiu predicate
+let Predicates = [HasVendorXKeysomSltiu] in
 def : Pat<(XLenVT (setne (XLenVT GPR:$rs1), -1)), (SLTIU GPR:$rs1, -1)>;
 
 def IntCCtoRISCVCC : SDNodeXForm<riscv_selectcc, [{
