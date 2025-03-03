@@ -1264,6 +1264,9 @@ def FeatureVendorXKeysomNoCebreak : KeysomExtension<"c.ebreak">;
 defm Cebreak : KeysomPredicates<FeatureVendorXKeysomNoCebreak>;
 
 // "I" Base instructions
+def FeatureVendorXKeysomNoSlti : KeysomExtension<"Slti">;
+defm Slti : KeysomPredicates<FeatureVendorXKeysomNoSlti>;
+
 def FeatureVendorXKeysomNoLui : KeysomExtension<"Lui">;
 defm Lui : KeysomPredicates<FeatureVendorXKeysomNoLui>;
 
