@@ -1176,6 +1176,13 @@ defm Csub : KeysomPredicates<FeatureVendorXKeysomNoCsub>;
 def FeatureVendorXKeysomNoCebreak : KeysomExtension<"c.ebreak">;
 defm Cebreak : KeysomPredicates<FeatureVendorXKeysomNoCebreak>;
 
+// "I" Base instructions
+def FeatureVendorXKeysomNoLui : KeysomExtension<"Lui">;
+defm Lui : KeysomPredicates<FeatureVendorXKeysomNoLui>;
+
+def FeatureVendorXKeysomNoOri : KeysomExtension<"Ori">;
+defm Ori : KeysomPredicates<FeatureVendorXKeysomNoOri>;
+
 // F extension
 def FeatureVendorXKeysomNoFmadds : KeysomExtension<"Fmadds">;
 defm Fmadds : KeysomPredicates<FeatureVendorXKeysomNoFmadds>;
