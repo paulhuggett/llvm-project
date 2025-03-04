@@ -702,6 +702,8 @@ def ORI   : ALU_ri<0b110, "ori">;
 }
 // *PBH*: End added
 
+// *PBH*: Added andi predicate
+let Predicates = [HasVendorXKeysomAndi] in
 def ANDI  : ALU_ri<0b111, "andi">;
 
 def SLLI : Shift_ri<0b00000, 0b001, "slli">,
@@ -1089,6 +1091,8 @@ def : InstAlias<"sw $rs2, (${rs1})",
 
 def : InstAlias<"add $rd, $rs1, $imm12",
                 (ADDI  GPR:$rd, GPR:$rs1, simm12:$imm12)>;
+// *PBH*: Added andi predicate
+let Predicates = [HasVendorXKeysomAndi] in
 def : InstAlias<"and $rd, $rs1, $imm12",
                 (ANDI  GPR:$rd, GPR:$rs1, simm12:$imm12)>;
 def : InstAlias<"xor $rd, $rs1, $imm12",
@@ -1139,6 +1143,8 @@ def : MnemonicAlias<"sbreak", "ebreak">;
 // This alias was added to the spec in December 2020. Don't print it by default
 // to allow assembly we print to be compatible with versions of GNU assembler
 // that don't support this alias.
+// *PBH*: Added andi predicate
+let Predicates = [HasVendorXKeysomAndi] in
 def : InstAlias<"zext.b $rd, $rs", (ANDI GPR:$rd, GPR:$rs, 0xFF), 0>;
 
 let Predicates = [HasStdExtZicfilp] in {
@@ -1365,6 +1371,8 @@ def : PatGprSimm12<or, ORI>;
 // *PBH*: End added predicate
 
 def : PatGprGpr<and, AND>;
+// *PBH*: Added andi predicate
+let Predicates = [HasVendorXKeysomAndi] in
 def : PatGprSimm12<and, ANDI>;
 def : PatGprGpr<xor, XOR>;
 def : PatGprSimm12<xor, XORI>;
@@ -2067,6 +2075,8 @@ def : Pat<(binop_allwusers<srl> (sext_inreg GPR:$rs1, i32), uimm5:$shamt),
 // SimplifyDemandedBits.
 def : Pat<(binop_allwusers<and> GPR:$rs1, 0xffffffff),
           (COPY GPR:$rs1)>;
+// *PBH*: Added andi predicate
+let Predicates = [HasVendorXKeysomAndi] in
 def : PatGprImm<binop_allwusers<and>, ANDI, u32simm12>;
 // *PBH*: Added the HasVendorXKeysomOri predicate
 let Predicates = [HasVendorXKeysomOri] in
