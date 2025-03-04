@@ -1274,6 +1274,9 @@ defm Slti : KeysomPredicates<FeatureVendorXKeysomNoSlti>;
 def FeatureVendorXKeysomNoSltiu : KeysomExtension<"Sltiu">;
 defm Sltiu : KeysomPredicates<FeatureVendorXKeysomNoSltiu>;
 
+def FeatureVendorXKeysomNoAndi : KeysomExtension<"Andi">;
+defm Andi : KeysomPredicates<FeatureVendorXKeysomNoAndi>;
+
 def FeatureVendorXKeysomNoLui : KeysomExtension<"Lui">;
 defm Lui : KeysomPredicates<FeatureVendorXKeysomNoLui>;
 

@@ -1050,8 +1050,8 @@ def : CompressPat<(SRLI GPRC:$rs1, GPRC:$rs1, uimmlog2xlennonzero:$imm),
 let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCsrai] in
 def : CompressPat<(SRAI GPRC:$rs1, GPRC:$rs1, uimmlog2xlennonzero:$imm),
                   (C_SRAI GPRC:$rs1, uimmlog2xlennonzero:$imm)>;
-// *PBH*: Added HasVendorXKeysomCandi predicate
-let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCandi] in
+// *PBH*: Added HasVendorXKeysomAndi, HasVendorXKeysomCandi predicate
+let Predicates = [HasStdExtCOrZca, HasVendorXKeysomAndi, HasVendorXKeysomCandi] in
 def : CompressPat<(ANDI GPRC:$rs1, GPRC:$rs1, simm6:$imm),
                   (C_ANDI GPRC:$rs1, simm6:$imm)>;
 // *PBH*: Added HasVendorXKeysomCsub predicate
