@@ -767,17 +767,20 @@ def SLTIU : ALU_ri<0b011, "sltiu">;
 }
 
 let isReMaterializable = 1, isAsCheapAsAMove = 1 in {
+// *PBH*: Added HasVendorXKeysomXOri predicate
+let Predicates = [HasVendorXKeysomXori] in
 def XORI  : ALU_ri<0b100, "xori">;
-// *PBH*: Begin added HasVendorXKeysomOri predicate
+// *PBH*: Added HasVendorXKeysomOri predicate
 let Predicates = [HasVendorXKeysomOri] in
 def ORI   : ALU_ri<0b110, "ori">;
 }
-// *PBH*: End added
 
 // *PBH*: Added andi predicate
 let Predicates = [HasVendorXKeysomAndi] in
 def ANDI  : ALU_ri<0b111, "andi">;
 
+// *PBH*: Added slli predicate
+let Predicates = [HasVendorXKeysomSlli] in
 def SLLI : Shift_ri<0b00000, 0b001, "slli">,
            Sched<[WriteShiftImm, ReadShiftImm]>;
 def SRLI : Shift_ri<0b00000, 0b101, "srli">,
@@ -1026,6 +1029,8 @@ def : InstAlias<"nop",           (ADDI      X0,      X0,           0), 3>;
 def : InstAlias<"li $rd, $imm",  (ADDI GPR:$rd,      X0, simm12:$imm), 2>;
 def : InstAlias<"mv $rd, $rs",   (ADDI GPR:$rd, GPR:$rs,           0)>;
 
+// *PBH*: Added xori predicate
+let Predicates = [HasVendorXKeysomXori] in
 def : InstAlias<"not $rd, $rs",  (XORI GPR:$rd, GPR:$rs,      -1)>;
 def : InstAlias<"neg $rd, $rs",  (SUB  GPR:$rd,      X0, GPR:$rs)>;
 
@@ -1167,10 +1172,14 @@ def : InstAlias<"add $rd, $rs1, $imm12",
 let Predicates = [HasVendorXKeysomAndi] in
 def : InstAlias<"and $rd, $rs1, $imm12",
                 (ANDI  GPR:$rd, GPR:$rs1, simm12:$imm12)>;
+// *PBH*: Added xori predicate
+let Predicates = [HasVendorXKeysomXori] in
 def : InstAlias<"xor $rd, $rs1, $imm12",
                 (XORI  GPR:$rd, GPR:$rs1, simm12:$imm12)>;
 def : InstAlias<"or $rd, $rs1, $imm12",
                 (ORI  GPR:$rd, GPR:$rs1, simm12:$imm12)>;
+// *PBH*: Added slli predicate
+let Predicates = [HasVendorXKeysomSlli] in
 def : InstAlias<"sll $rd, $rs1, $shamt",
                 (SLLI  GPR:$rd, GPR:$rs1, uimmlog2xlen:$shamt)>;
 def : InstAlias<"srl $rd, $rs1, $shamt",
@@ -1455,7 +1464,11 @@ def : PatGprGpr<and, AND>;
 let Predicates = [HasVendorXKeysomAndi] in
 def : PatGprSimm12<and, ANDI>;
 def : PatGprGpr<xor, XOR>;
+// *PBH*: Added xori predicate
+let Predicates = [HasVendorXKeysomXori] in
 def : PatGprSimm12<xor, XORI>;
+// *PBH*: Added slli predicate
+let Predicates = [HasVendorXKeysomSlli] in
 def : PatGprUimmLog2XLen<shl, SLLI>;
 def : PatGprUimmLog2XLen<srl, SRLI>;
 def : PatGprUimmLog2XLen<sra, SRAI>;
@@ -1477,18 +1490,22 @@ def add_like : PatFrags<(ops node:$lhs, node:$rhs),
 
 // negate of low bit can be done via two (compressible) shifts.  The negate
 // is never compressible since rs1 and rd can't be the same register.
+// *PBH*: Added slli predicate
 def : Pat<(i32 (sub 0, (and_oneuse GPR:$rs, 1))),
-          (SRAI (i32 (SLLI $rs, 31)), 31)>, Requires<[IsRV32]>;
+          (SRAI (i32 (SLLI $rs, 31)), 31)>, Requires<[IsRV32, HasVendorXKeysomSlli]>;
 def : Pat<(i64 (sub 0, (and_oneuse GPR:$rs, 1))),
-          (SRAI (i64 (SLLI $rs, 63)), 63)>, Requires<[IsRV64]>;
+          (SRAI (i64 (SLLI $rs, 63)), 63)>, Requires<[IsRV64, HasVendorXKeysomSlli]>;
 
 // AND with leading/trailing ones mask exceeding simm32/simm12.
+// *PBH*: Added slli predicate
+let Predicates = [HasVendorXKeysomSlli] in {
 def : Pat<(i64 (and GPR:$rs, immop_oneuse<LeadingOnesMask>:$mask)),
           (SLLI (i64 (SRLI $rs, (TrailingZeros imm:$mask))),
                 (TrailingZeros imm:$mask))>;
 def : Pat<(XLenVT (and GPR:$rs, immop_oneuse<TrailingOnesMask>:$mask)),
           (SRLI (XLenVT (SLLI $rs, (XLenSubTrailingOnes imm:$mask))),
                 (XLenSubTrailingOnes imm:$mask))>;
+}
 
 // Match both a plain shift and one where the shift amount is masked (this is
 // typically introduced when the legalizer promotes the shift amount and
@@ -2079,7 +2096,8 @@ def ADJCALLSTACKUP   : Pseudo<(outs), (ins i32imm:$amt1, i32imm:$amt2),
 
 /// RV64 patterns
 
-let Predicates = [IsRV64, NotHasStdExtZba] in {
+// *PBH*: Added slli predicate
+let Predicates = [IsRV64, NotHasStdExtZba, HasVendorXKeysomSlli] in {
 def : Pat<(i64 (and GPR:$rs1, 0xffffffff)), (SRLI (i64 (SLLI GPR:$rs1, 32)), 32)>;
 
 // If we're shifting a 32-bit zero extended value left by 0-31 bits, use 2
@@ -2123,6 +2141,8 @@ def u32simm12 : ImmLeaf<XLenVT, [{
 
 let Predicates = [IsRV64] in {
 
+// *PBH*: Added slli predicate
+let Predicates = [IsRV64, HasVendorXKeysomSlli] in
 def : Pat<(i64 (and GPR:$rs, immop_oneuse<LeadingOnesWMask>:$mask)),
           (SLLI (i64 (SRLIW $rs, (TrailingZeros imm:$mask))),
                 (TrailingZeros imm:$mask))>;
@@ -2172,6 +2192,8 @@ def : PatGprImm<binop_allwusers<and>, ANDI, u32simm12>;
 // *PBH*: Added the HasVendorXKeysomOri predicate
 let Predicates = [HasVendorXKeysomOri] in
 def : PatGprImm<binop_allwusers<or>,  ORI,  u32simm12>;
+// *PBH*: Added the HasVendorXKeysomXori predicate
+let Predicates = [HasVendorXKeysomXori] in
 def : PatGprImm<binop_allwusers<xor>, XORI, u32simm12>;
 
 // Select 'or' as ADDIW if the immediate bits are known to be 0 in $rs1 and

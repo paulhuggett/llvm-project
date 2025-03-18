@@ -330,17 +330,21 @@ RISCVInstructionSelector::selectShiftMask(MachineOperand &Root,
         MIB.addReg(ShAmtReg);
       }}};
     }
-    if (Imm.urem(ShiftWidth) == ShiftWidth - 1) {
-      // If we are shifting by N-X where N == -1 mod Size, then just shift by ~X
-      // to generate a NOT instead of a SUB of a constant.
-      ShAmtReg = MRI->createVirtualRegister(&RISCV::GPRRegClass);
-      return {{[=](MachineInstrBuilder &MIB) {
-        MachineIRBuilder(*MIB.getInstr())
-            .buildInstr(RISCV::XORI, {ShAmtReg}, {Reg})
-            .addImm(-1);
-        MIB.addReg(ShAmtReg);
-      }}};
-    }
+
+    // *PBH*: This is an optimization that (on RV32) replaces x << (31-y) with
+    // x << ~y. Disable it if xori is not available.
+    if (!Subtarget->hasVendorXKeysomNoXori())
+      if (Imm.urem(ShiftWidth) == ShiftWidth - 1) {
+        // If we are shifting by N-X where N == -1 mod Size, then just shift by
+        // ~X to generate a NOT instead of a SUB of a constant.
+        ShAmtReg = MRI->createVirtualRegister(&RISCV::GPRRegClass);
+        return {{[=](MachineInstrBuilder &MIB) {
+          MachineIRBuilder(*MIB.getInstr())
+              .buildInstr(RISCV::XORI, {ShAmtReg}, {Reg})
+              .addImm(-1);
+          MIB.addReg(ShAmtReg);
+        }}};
+      }
   }
 
   return {{[=](MachineInstrBuilder &MIB) { MIB.addReg(ShAmtReg); }}};
@@ -1349,9 +1353,22 @@ bool RISCVInstructionSelector::selectFPCompare(MachineInstr &MI,
 
   // Emit an XORI to invert the result if needed.
   if (NeedInvert) {
-    auto Xor = MIB.buildInstr(RISCV::XORI, {DstReg}, {TmpReg}).addImm(1);
-    if (!Xor.constrainAllUses(TII, TRI, RBI))
-      return false;
+    // *PBH*: Expand XORI if the instruction is unavailable.
+    if (STI.hasVendorXKeysomNoXori()) {
+      Register Imm = MRI->createVirtualRegister(&RISCV::GPRRegClass);
+      auto Addi =
+          MIB.buildInstr(RISCV::ADDI, {Imm}, {Register(RISCV::X0)}).addImm(1);
+      if (!Addi.constrainAllUses(TII, TRI, RBI))
+        return false;
+      auto Xor = MIB.buildInstr(RISCV::XOR, {DstReg}, {TmpReg, Addi});
+      if (!Xor.constrainAllUses(TII, TRI, RBI))
+        return false;
+    } else {
+      auto Xor = MIB.buildInstr(RISCV::XORI, {DstReg}, {TmpReg}).addImm(1);
+      if (!Xor.constrainAllUses(TII, TRI, RBI))
+        return false;
+    }
+    // *PBH*: End expand XORI
   }
 
   MI.eraseFromParent();

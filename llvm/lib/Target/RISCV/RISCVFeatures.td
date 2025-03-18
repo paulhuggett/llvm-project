@@ -1277,11 +1277,17 @@ defm Sltiu : KeysomPredicates<FeatureVendorXKeysomNoSltiu>;
 def FeatureVendorXKeysomNoAndi : KeysomExtension<"Andi">;
 defm Andi : KeysomPredicates<FeatureVendorXKeysomNoAndi>;
 
-def FeatureVendorXKeysomNoLui : KeysomExtension<"Lui">;
-defm Lui : KeysomPredicates<FeatureVendorXKeysomNoLui>;
-
 def FeatureVendorXKeysomNoOri : KeysomExtension<"Ori">;
 defm Ori : KeysomPredicates<FeatureVendorXKeysomNoOri>;
+
+def FeatureVendorXKeysomNoXori : KeysomExtension<"Xori">;
+defm Xori : KeysomPredicates<FeatureVendorXKeysomNoXori>;
+
+def FeatureVendorXKeysomNoSlli : KeysomExtension<"Slli">;
+defm Slli : KeysomPredicates<FeatureVendorXKeysomNoSlli>;
+
+def FeatureVendorXKeysomNoLui : KeysomExtension<"Lui">;
+defm Lui : KeysomPredicates<FeatureVendorXKeysomNoLui>;
 
 // F extension
 def FeatureVendorXKeysomNoFmadds : KeysomExtension<"Fmadds">;

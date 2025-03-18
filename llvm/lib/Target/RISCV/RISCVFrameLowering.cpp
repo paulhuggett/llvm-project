@@ -1145,10 +1145,26 @@ void RISCVFrameLowering::emitPrologue(MachineFunction &MF,
             .addReg(SPReg)
             .addImm(ShiftAmount)
             .setMIFlag(MachineInstr::FrameSetup);
-        BuildMI(MBB, MBBI, DL, TII->get(RISCV::SLLI), SPReg)
-            .addReg(VR)
-            .addImm(ShiftAmount)
-            .setMIFlag(MachineInstr::FrameSetup);
+        // *PBH*: Added the "no slli" test and expansion.
+        if (Subtarget.hasVendorXKeysomNoSlli()) {
+          Register Vt =
+              MF.getRegInfo().createVirtualRegister(&RISCV::GPRRegClass);
+          // addi Vt,x0,ShifAmount
+          BuildMI(MBB, MBBI, DL, TII->get(RISCV::ADDI), Vt)
+              .addReg(RISCV::X0)
+              .addImm(ShiftAmount)
+              .setMIFlag(MachineInstr::FrameSetup);
+          BuildMI(MBB, MBBI, DL, TII->get(RISCV::SLL), SPReg)
+              .addReg(VR)
+              .addReg(Vt)
+              .setMIFlag(MachineInstr::FrameSetup);
+        } else {
+          BuildMI(MBB, MBBI, DL, TII->get(RISCV::SLLI), SPReg)
+              .addReg(VR)
+              .addImm(ShiftAmount)
+              .setMIFlag(MachineInstr::FrameSetup);
+        }
+        // *PBH*: End added slli substitute.
       }
       if (NeedProbe && RVVStackSize == 0) {
         // Do a probe if the align + size allocated just passed the probe size

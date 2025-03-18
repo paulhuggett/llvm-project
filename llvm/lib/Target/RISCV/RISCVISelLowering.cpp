@@ -722,11 +722,19 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
     // *PBH*: Begin added
     if (Subtarget.hasVendorXKeysomNoLrw() ||
         Subtarget.hasVendorXKeysomNoScw()) {
+      // Disabling lrw or scw disables the entire A extension.
       setMinCmpXchgSizeInBits(0);
       setMaxAtomicSizeInBitsSupported(0);
     }
     // *PBH*: End added
 
+    // *PBH*: Begin added
+    if (Subtarget.hasStdExtA() && Subtarget.hasVendorXKeysomNoXori()) {
+      // Disabling xori disables the entire A extension.
+      setMinCmpXchgSizeInBits(0);
+      setMaxAtomicSizeInBitsSupported(0);
+    }
+    // *PBH*: End added
   } else if (Subtarget.hasForcedAtomics()) {
     setMaxAtomicSizeInBitsSupported(Subtarget.getXLen());
   } else {
@@ -1575,7 +1583,6 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
   if (Subtarget.hasStdExtA())
     setOperationAction(ISD::ATOMIC_LOAD_SUB, XLenVT, Expand);
 
-  // *PBH*: Begin added
   if (Subtarget.hasVendorXKeysomNoAmoswapw()) {
     setOperationAction(ISD::ATOMIC_SWAP, XLenVT, Expand);
   }

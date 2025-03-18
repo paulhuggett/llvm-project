@@ -91,12 +91,19 @@ static void generateInstSeqImpl(int64_t Val, const MCSubtargetInfo &STI,
     int64_t Lo12 = SignExtend64<12>(Val);
 
     if (Hi20) {
-      if (STI.hasFeature(RISCV::FeatureVendorXKeysomNoLui)) {
-        Res.emplace_back(RISCV::ADDI, Lo12);
-        Res.emplace_back(RISCV::SLLI, 12);
-      } else {
+      // *PBH*: Begin added expansion for LUI if it is not available
+      if (!STI.hasFeature(RISCV::FeatureVendorXKeysomNoLui)) {
         Res.emplace_back(RISCV::LUI, Hi20);
+      } else {
+        Res.emplace_back(RISCV::ADDI, Lo12);
+        if (!STI.hasFeature(RISCV::FeatureVendorXKeysomNoSlli)) {
+          Res.emplace_back(RISCV::SLLI, 12);
+        } else {
+          Res.emplace_back(RISCV::ADDI, 12);
+          Res.emplace_back(RISCV::SLL, 0);
+        }
       }
+      // *PBH*: End added expansion for LUI if it is not available
     }
 
     if (Lo12 || Hi20 == 0) {
@@ -264,25 +271,28 @@ InstSeq generateInstSeq(int64_t Val, const MCSubtargetInfo &STI) {
   RISCVMatInt::InstSeq Res;
   generateInstSeqImpl(Val, STI, Res);
 
-  // If the low 12 bits are non-zero, the first expansion may end with an ADDI
-  // or ADDIW. If there are trailing zeros, try generating a sign extended
-  // constant with no trailing zeros and use a final SLLI to restore them.
-  if ((Val & 0xfff) != 0 && (Val & 1) == 0 && Res.size() >= 2) {
-    unsigned TrailingZeros = llvm::countr_zero((uint64_t)Val);
-    int64_t ShiftedVal = Val >> TrailingZeros;
-    // If we can use C.LI+C.SLLI instead of LUI+ADDI(W) prefer that since
-    // its more compressible. But only if LUI+ADDI(W) isn't fusable.
-    // NOTE: We don't check for C extension to minimize differences in generated
-    // code.
-    bool IsShiftedCompressible =
-        isInt<6>(ShiftedVal) && !STI.hasFeature(RISCV::TuneLUIADDIFusion);
-    RISCVMatInt::InstSeq TmpSeq;
-    generateInstSeqImpl(ShiftedVal, STI, TmpSeq);
+  // *PBH*: This optimization uses SLLI. Disable if it is not available.
+  if (!STI.hasFeature(RISCV::FeatureVendorXKeysomNoSlli)) {
+    // If the low 12 bits are non-zero, the first expansion may end with an ADDI
+    // or ADDIW. If there are trailing zeros, try generating a sign extended
+    // constant with no trailing zeros and use a final SLLI to restore them.
+    if ((Val & 0xfff) != 0 && (Val & 1) == 0 && Res.size() >= 2) {
+      unsigned TrailingZeros = llvm::countr_zero((uint64_t)Val);
+      int64_t ShiftedVal = Val >> TrailingZeros;
+      // If we can use C.LI+C.SLLI instead of LUI+ADDI(W) prefer that since
+      // its more compressible. But only if LUI+ADDI(W) isn't fusable.
+      // NOTE: We don't check for C extension to minimize differences in generated
+      // code.
+      bool IsShiftedCompressible =
+          isInt<6>(ShiftedVal) && !STI.hasFeature(RISCV::TuneLUIADDIFusion);
+      RISCVMatInt::InstSeq TmpSeq;
+      generateInstSeqImpl(ShiftedVal, STI, TmpSeq);
 
-    // Keep the new sequence if it is an improvement.
-    if ((TmpSeq.size() + 1) < Res.size() || IsShiftedCompressible) {
-      TmpSeq.emplace_back(RISCV::SLLI, TrailingZeros);
-      Res = TmpSeq;
+      // Keep the new sequence if it is an improvement.
+      if ((TmpSeq.size() + 1) < Res.size() || IsShiftedCompressible) {
+        TmpSeq.emplace_back(RISCV::SLLI, TrailingZeros);
+        Res = TmpSeq;
+      }
     }
   }
 
@@ -290,6 +300,12 @@ InstSeq generateInstSeq(int64_t Val, const MCSubtargetInfo &STI) {
   // will always be true for RV32 and will often be true for RV64.
   if (Res.size() <= 2)
     return Res;
+
+  // *PBH*: TODO: Only bail here if none of the XKeysomNo... features are
+  // enabled.
+  if (STI.hasFeature(RISCV::Feature32Bit)) {
+    return Res;
+  }
 
   assert(STI.hasFeature(RISCV::Feature64Bit) &&
          "Expected RV32 to only need 2 instructions");
@@ -516,6 +532,11 @@ InstSeq generateTwoRegInstSeq(int64_t Val, const MCSubtargetInfo &STI,
 
   // Subtract the LoVal to emulate the effect of the final ADD.
   uint64_t Tmp = (uint64_t)Val - (uint64_t)LoVal;
+  // *PBH*: Begin added. Tmp can be zero here.
+  if (Tmp == 0) {
+    return RISCVMatInt::InstSeq();
+  }
+  // *PBH*: End added.
   assert(Tmp != 0);
 
   // Use trailing zero counts to figure how far we need to shift LoVal to line
@@ -575,6 +596,7 @@ OpndKind Inst::getOpndKind() const {
   case RISCV::SH2ADD:
   case RISCV::SH3ADD:
   case RISCV::PACK:
+  case RISCV::SLL: // *PBH*: Added because we can now generate this instruction.
     return RISCVMatInt::RegReg;
   case RISCV::ADDI:
   case RISCV::ADDIW:
