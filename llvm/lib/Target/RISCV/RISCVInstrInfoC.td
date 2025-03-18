@@ -495,17 +495,19 @@ let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCsrai] in
 def C_SRAI : Shift_right<0b01, "c.srai">,
              Sched<[WriteShiftImm, ReadShiftImm]>;
 
-// *PBH*: Begin added let Predicates including HasVendorXKeysomCandi
-let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCandi] in {
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def C_ANDI : RVInst16CB<0b100, 0b01, (outs GPRC:$rd), (ins GPRC:$rs1, simm6:$imm),
-                        "c.andi", "$rs1, $imm">,
-             Sched<[WriteIALU, ReadIALU]> {
-  let Constraints = "$rs1 = $rd";
-  let Inst{12} = imm{5};
-  let Inst{11-10} = 0b10;
-  let Inst{6-2} = imm{4-0};
-}
+// *PBH*: Begin added let Predicates including andi and c.andi
+let Predicates = [HasStdExtCOrZca, HasVendorXKeysomAndi,
+                  HasVendorXKeysomCandi] in {
+  let hasSideEffects = 0, mayLoad = 0,
+      mayStore = 0 in def C_ANDI
+      : RVInst16CB<0b100, 0b01, (outs GPRC:$rd), (ins GPRC:$rs1, simm6:$imm),
+                   "c.andi", "$rs1, $imm">,
+      Sched<[WriteIALU, ReadIALU]> {
+    let Constraints = "$rs1 = $rd";
+    let Inst{12} = imm{5};
+    let Inst{11 -10} = 0b10;
+    let Inst{6 -2} = imm{4 -0};
+  }
 }
 // *PBH*: End added let Predicates including HasVendorXKeysomCandi
 // *PBH*: Added the let Predicates line including HasVendorXKeysomCsub
@@ -550,8 +552,8 @@ def C_BEQZ : Bcz<0b110, "c.beqz">, Sched<[WriteJmp, ReadJmp]>;
 let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCbnez] in
 def C_BNEZ : Bcz<0b111, "c.bnez">, Sched<[WriteJmp, ReadJmp]>;
 
-// *PBH*: Begin added predicate HasVendorXKeysomCslli
-let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCslli] in {
+// *PBH*: Begin added predicate HasVendorXKeysomSlli and HasVendorXKeysomCslli
+let Predicates = [HasStdExtCOrZca, HasVendorXKeysomSlli, HasVendorXKeysomCslli] in {
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def C_SLLI : RVInst16CI<0b000, 0b10, (outs GPRNoX0:$rd_wb),
                         (ins GPRNoX0:$rd, uimmlog2xlennonzero:$imm),
@@ -749,8 +751,8 @@ def C_ADD_HINT : RVInst16CR<0b1001, 0b10, (outs GPRX0:$rd),
   let DecoderMethod = "decodeRVCInstrRdRs1Rs2";
 }
 
-// *PBH*: Begin added HasVendorXKeysomCslli
-let Predicates = [HasStdExtCOrZca, HasRVCHints, HasVendorXKeysomCslli] in
+// *PBH*: Begin added HasVendorXKeysomSlli and HasVendorXKeysomCslli
+let Predicates = [HasStdExtCOrZca, HasRVCHints, HasVendorXKeysomSlli, HasVendorXKeysomCslli] in
 def C_SLLI_HINT : RVInst16CI<0b000, 0b10, (outs GPRX0:$rd_wb),
                              (ins GPRX0:$rd, uimmlog2xlennonzero:$imm),
                              "c.slli", "$rd, $imm">,
@@ -1126,10 +1128,11 @@ def : CompressPat<(BNE X0, GPRC:$rs1, bare_simm9_lsb0:$imm),
 } // Predicates = [HasStdExtCOrZca]
 
 // Quadrant 2
-// *PBH*: Added HasVendorXKeysomCslli to the list of predicates
-let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCslli] in {
-def : CompressPat<(SLLI GPRNoX0:$rs1, GPRNoX0:$rs1, uimmlog2xlennonzero:$imm),
-                  (C_SLLI GPRNoX0:$rs1, uimmlog2xlennonzero:$imm)>;
+// *PBH*: Added has-slli and has-c.slli to the list of predicates
+let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCslli,
+                  HasVendorXKeysomSlli] in {
+  def : CompressPat<(SLLI GPRNoX0:$rs1, GPRNoX0:$rs1, uimmlog2xlennonzero:$imm),
+                    (C_SLLI GPRNoX0:$rs1, uimmlog2xlennonzero:$imm)>;
 } // Predicates = [HasStdExtCOrZca]
 
 let Predicates = [HasStdExtCOrZcd, HasStdExtD] in {
