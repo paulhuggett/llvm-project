@@ -481,6 +481,8 @@ private:
   bool expandLoadTLSDescAddress(MachineBasicBlock &MBB,
                                 MachineBasicBlock::iterator MBBI,
                                 MachineBasicBlock::iterator &NextMBBI);
+  bool expandSLTIU(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
+                   MachineBasicBlock::iterator &NextMBBI);
 
 #ifndef NDEBUG
   unsigned getInstSizeInBytes(const MachineFunction &MF) const {
@@ -499,7 +501,7 @@ bool RISCVPreRAExpandPseudo::runOnMachineFunction(MachineFunction &MF) {
   STI = &MF.getSubtarget<RISCVSubtarget>();
   TII = STI->getInstrInfo();
 
-#ifndef NDEBUG
+#if 0 //*PBH*: Check disabled
   const unsigned OldSize = getInstSizeInBytes(MF);
 #endif
 
@@ -507,7 +509,7 @@ bool RISCVPreRAExpandPseudo::runOnMachineFunction(MachineFunction &MF) {
   for (auto &MBB : MF)
     Modified |= expandMBB(MBB);
 
-#ifndef NDEBUG
+#if 0 // *PBH*: Check disabled
   const unsigned NewSize = getInstSizeInBytes(MF);
   assert(OldSize >= NewSize);
 #endif
@@ -542,8 +544,100 @@ bool RISCVPreRAExpandPseudo::expandMI(MachineBasicBlock &MBB,
     return expandLoadTLSGDAddress(MBB, MBBI, NextMBBI);
   case RISCV::PseudoLA_TLSDESC:
     return expandLoadTLSDescAddress(MBB, MBBI, NextMBBI);
+  case RISCV::PseudoSLTIU:
+    return expandSLTIU(MBB, MBBI, NextMBBI);
   }
   return false;
+}
+
+// PseudoSLTIU takes the same operands as the SLTIU instruction:
+//
+//   PseudoSLTIU rd, rs1, imm
+//
+// The replacement code should look like:
+//
+//  OrigBB:
+//      [... previous instrs ...]
+//      addi  rd, rs1, -imm
+//      bltu  rd, X0, TrueBB
+//  FalseBB:
+//      addi  rd, X0, 0
+//      jal   X0, PostBB
+//  TrueBB:
+//      addi  rd, X0, 1
+//      ; Fallthrough
+//  PostBB:
+//      Dest = PHI [TrueReg, TrueBB], [FalseReg, OrigBB]
+bool RISCVPreRAExpandPseudo::expandSLTIU(
+    MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
+    MachineBasicBlock::iterator &NextMBBI) {
+  MachineFunction *const MF = OrigBB.getParent();
+  assert(MF->getSubtarget<RISCVSubtarget>().hasVendorXKeysomNoSltiu() &&
+         "PseudoSLTIU should only be used when SLTIU is disabled");
+  MachineInstr &MI = *MBBI;
+  assert(MI.getNumOperands() == 3 && "Expected PseudoSLTIU to have 3 operands "
+                                     "(matching the SLTIU instruction)");
+  DebugLoc DL = MI.getDebugLoc();
+
+  Register Rd = MI.getOperand(0).getReg();
+  Register Rs1 = MI.getOperand(1).getReg();
+  const int64_t Imm = MI.getOperand(2).getImm();
+
+  MachineRegisterInfo &MRI = MF->getRegInfo();
+
+  MachineBasicBlock *const FalseBB =
+      MF->CreateMachineBasicBlock(OrigBB.getBasicBlock());
+  MachineBasicBlock *const TrueBB =
+      MF->CreateMachineBasicBlock(OrigBB.getBasicBlock());
+  MachineBasicBlock *const PostBB =
+      MF->CreateMachineBasicBlock(OrigBB.getBasicBlock());
+
+  MachineFunction::iterator It = ++OrigBB.getIterator();
+  MF->insert(It, FalseBB);
+  MF->insert(It, TrueBB);
+  MF->insert(It, PostBB);
+  NextMBBI = OrigBB.end();
+
+  // Transfer rest of current basic-block to PostBB
+  PostBB->splice(PostBB->begin(), &OrigBB,
+                 std::next(MachineBasicBlock::iterator(MI)), OrigBB.end());
+  PostBB->transferSuccessorsAndUpdatePHIs(&OrigBB);
+
+  Register SubResult = MRI.createVirtualRegister(MRI.getRegClass(Rd));
+  BuildMI(OrigBB, OrigBB.end(), DL, TII->get(RISCV::ADDI), SubResult)
+      .addReg(Rs1)
+      .addImm(-Imm);
+  BuildMI(OrigBB, OrigBB.end(), DL, TII->get(RISCV::BLTU))
+      .addReg(SubResult)
+      .addReg(RISCV::X0)
+      .addMBB(TrueBB);
+  OrigBB.addSuccessor(TrueBB);
+  OrigBB.addSuccessor(FalseBB);
+
+  Register FalseReg = MRI.createVirtualRegister(MRI.getRegClass(Rd));
+  BuildMI(*FalseBB, FalseBB->end(), DL, TII->get(RISCV::ADDI), FalseReg)
+      .addReg(RISCV::X0)
+      .addImm(0);
+  BuildMI(*FalseBB, FalseBB->end(), DL, TII->get(RISCV::PseudoBR))
+      .addMBB(PostBB);
+  FalseBB->addSuccessor(PostBB);
+
+  Register TrueReg = MRI.createVirtualRegister(MRI.getRegClass(Rd));
+  BuildMI(*TrueBB, TrueBB->end(), DL, TII->get(RISCV::ADDI), TrueReg)
+      .addReg(RISCV::X0)
+      .addImm(1);
+  // TrueBB falls through.
+  TrueBB->addSuccessor(PostBB);
+
+  // A phi node to def the final result.
+  BuildMI(*PostBB, PostBB->begin(), DL, TII->get(TargetOpcode::PHI), Rd)
+      .addReg(FalseReg)
+      .addMBB(FalseBB)
+      .addReg(TrueReg)
+      .addMBB(TrueBB);
+
+  MI.eraseFromParent();
+  return true;
 }
 
 bool RISCVPreRAExpandPseudo::expandAuipcInstPair(

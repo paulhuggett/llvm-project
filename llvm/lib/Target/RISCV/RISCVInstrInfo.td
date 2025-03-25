@@ -1649,9 +1649,15 @@ def riscv_seteq : ComplexPattern<XLenVT, 1, "selectSETEQ", [setcc]>;
 
 // Define pattern expansions for setcc operations that aren't directly
 // handled by a RISC-V instruction.
-// *PBH*: Added HasVendorXKeysomSltiu predicate
+// *PBH*: Begin added HasVendorXKeysomSltiu predicate and PseudoSLTIU
 let Predicates = [HasVendorXKeysomSltiu] in
 def : Pat<(riscv_seteq (XLenVT GPR:$rs1)), (SLTIU GPR:$rs1, 1)>;
+
+def PseudoSLTIU : Pseudo<(outs GPR:$dst), (ins GPR:$rs1, simm12:$imm12), []>,
+                  Sched<[WriteIALU, ReadIALU]>;
+def : Pat<(riscv_seteq(XLenVT GPR:$rs1)), (PseudoSLTIU GPR:$rs1, 1)>;
+// *PBH*: End added
+
 def : Pat<(riscv_setne (XLenVT GPR:$rs1)), (SLTU (XLenVT X0), GPR:$rs1)>;
 // *PBH*: Added HasVendorXKeysomSltiu predicate
 let Predicates = [HasVendorXKeysomSltiu] in

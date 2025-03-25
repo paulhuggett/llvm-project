@@ -21,7 +21,7 @@
 ; RUN:   | FileCheck -check-prefixes=RV32I_f_NOXORI,RV32I_g_NOXORI,RV32I_k_NOXORI,RV32IF_m_NOXORI %s
 ; RUN: llc -mtriple=riscv32 -riscv-no-aliases      \
 ; RUN:     -mattr=+a -mattr=+xkeysomnoxori < %s    \
-; RUN:   | FileCheck -check-prefixes=RV32IA_j %s
+; RUN:   | FileCheck -check-prefixes=RV32IA_j_NOXORI %s
 
 ; NO_XORI-NOT: xori {{.+}}, {{.+}}, {{-?[0-9]+}}
 define i32 @f(i32 %x) nounwind {
@@ -55,6 +55,9 @@ define i8 @j(ptr %ptr, i8 %v1, i16 %v2, i32 %v4, i64 %v8) nounwind {
 
 ; RV32IA_j-LABEL: j:
 ; RV32IA_j: xori {{.+}}, {{.+}}, {{-?[0-9]+}}
+
+; RV32IA_j_NOXORI-LABEL: j:
+; RV32IA_j_NOXORI-NOT: xori {{.+}}, {{.+}}, {{-?[0-9]+}}
 entry:
   %0 = atomicrmw nand ptr %ptr, i8 %v1 seq_cst, align 1
   %1 = atomicrmw nand ptr %ptr, i16 %v2 seq_cst, align 2
