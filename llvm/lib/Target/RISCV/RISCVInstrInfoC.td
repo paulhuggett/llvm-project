@@ -434,7 +434,7 @@ def PseudoC_ADDI_NOP : Pseudo<(outs GPRX0:$rd), (ins GPRX0:$rs1, immzero:$imm),
 let Predicates = [HasStdExtCOrZca, IsRV32, HasVendorXKeysomCjal] in {
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0, isCall = 1,
     DecoderNamespace = "RV32Only", Defs = [X1],
-    Predicates = [HasStdExtCOrZca, IsRV32]  in
+    Predicates = [HasStdExtCOrZca, IsRV32, HasVendorXKeysomCjal]  in
 def C_JAL : RVInst16CJ<0b001, 0b01, (outs), (ins bare_simm12_lsb0:$offset),
                        "c.jal", "$offset">, Sched<[WriteJal]>;
 }
