@@ -554,23 +554,10 @@ bool RISCVPreRAExpandPseudo::expandMI(MachineBasicBlock &MBB,
 //
 //   PseudoSLTIU rd, rs1, imm
 //
-// The replacement code should look like:
-//
-//  OrigBB:
-//      [... previous instrs ...]
-//      addi  rd, rs1, -imm
-//      bltu  rd, X0, TrueBB
-//  FalseBB:
-//      addi  rd, X0, 0
-//      jal   X0, PostBB
-//  TrueBB:
-//      addi  rd, X0, 1
-//      ; Fallthrough
-//  PostBB:
-//      Dest = PHI [TrueReg, TrueBB], [FalseReg, OrigBB]
 bool RISCVPreRAExpandPseudo::expandSLTIU(
     MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
     MachineBasicBlock::iterator &NextMBBI) {
+  static constexpr auto Zero = RISCV::X0;
   MachineFunction *const MF = OrigBB.getParent();
   assert(MF->getSubtarget<RISCVSubtarget>().hasVendorXKeysomNoSltiu() &&
          "PseudoSLTIU should only be used when SLTIU is disabled");
@@ -582,8 +569,43 @@ bool RISCVPreRAExpandPseudo::expandSLTIU(
   Register Rd = MI.getOperand(0).getReg();
   Register Rs1 = MI.getOperand(1).getReg();
   const int64_t Imm = MI.getOperand(2).getImm();
-
   MachineRegisterInfo &MRI = MF->getRegInfo();
+
+  const auto &Subtarget = MF->getSubtarget<RISCVSubtarget>();
+  if (!Subtarget.hasVendorXKeysomNoSltu()) {
+    // Use "sltu" if we have it. The replacement is straightforward:
+    //
+    //      [... previous instrs ...]
+    //      addi  Rs2, zero, imm
+    //      sltu  rd, rs1, Rs2
+    //      [... later instrs ...]
+    Register Rs2 = MRI.createVirtualRegister(MRI.getRegClass(Rd));
+    BuildMI(OrigBB, MBBI, DL, TII->get(RISCV::ADDI), Rs2)
+        .addReg(Zero)
+        .addImm(Imm);
+    BuildMI(OrigBB, MBBI, DL, TII->get(RISCV::SLTU), Rd)
+        .addReg(Rs1)
+        .addReg(Rs2);
+    MI.eraseFromParent();
+    return true;
+  }
+
+  // The replacement code should now look like:
+  //
+  //  OrigBB:
+  //      [... previous instrs ...]
+  //      addi  SubResult, rs1, -imm
+  //      addi  ImmReg, zero, imm
+  //      bgeu  SubResult, ImmReg, TrueBB
+  //  FalseBB:
+  //      addi  FalseReg, zero, 0
+  //      jal   X0, PostBB
+  //  TrueBB:
+  //      addi  TrueReg, zero, 1
+  //      ; Fallthrough
+  //  PostBB:
+  //      rd = PHI [TrueReg, TrueBB], [FalseReg, FalseBB]
+  //      [... later instrs ...]
 
   MachineBasicBlock *const FalseBB =
       MF->CreateMachineBasicBlock(OrigBB.getBasicBlock());
@@ -596,27 +618,30 @@ bool RISCVPreRAExpandPseudo::expandSLTIU(
   MF->insert(It, FalseBB);
   MF->insert(It, TrueBB);
   MF->insert(It, PostBB);
-  NextMBBI = OrigBB.end();
 
   // Transfer rest of current basic-block to PostBB
   PostBB->splice(PostBB->begin(), &OrigBB,
-                 std::next(MachineBasicBlock::iterator(MI)), OrigBB.end());
+                 std::next(MachineBasicBlock::iterator{MI}), OrigBB.end());
   PostBB->transferSuccessorsAndUpdatePHIs(&OrigBB);
 
   Register SubResult = MRI.createVirtualRegister(MRI.getRegClass(Rd));
   BuildMI(OrigBB, OrigBB.end(), DL, TII->get(RISCV::ADDI), SubResult)
       .addReg(Rs1)
       .addImm(-Imm);
-  BuildMI(OrigBB, OrigBB.end(), DL, TII->get(RISCV::BLTU))
+  Register ImmReg = MRI.createVirtualRegister(MRI.getRegClass(Rd));
+  BuildMI(OrigBB, OrigBB.end(), DL, TII->get(RISCV::ADDI), ImmReg)
+      .addReg(Zero)
+      .addImm(Imm);
+  BuildMI(OrigBB, OrigBB.end(), DL, TII->get(RISCV::BGEU))
       .addReg(SubResult)
-      .addReg(RISCV::X0)
+      .addReg(ImmReg)
       .addMBB(TrueBB);
   OrigBB.addSuccessor(TrueBB);
   OrigBB.addSuccessor(FalseBB);
 
   Register FalseReg = MRI.createVirtualRegister(MRI.getRegClass(Rd));
   BuildMI(*FalseBB, FalseBB->end(), DL, TII->get(RISCV::ADDI), FalseReg)
-      .addReg(RISCV::X0)
+      .addReg(Zero)
       .addImm(0);
   BuildMI(*FalseBB, FalseBB->end(), DL, TII->get(RISCV::PseudoBR))
       .addMBB(PostBB);
@@ -624,7 +649,7 @@ bool RISCVPreRAExpandPseudo::expandSLTIU(
 
   Register TrueReg = MRI.createVirtualRegister(MRI.getRegClass(Rd));
   BuildMI(*TrueBB, TrueBB->end(), DL, TII->get(RISCV::ADDI), TrueReg)
-      .addReg(RISCV::X0)
+      .addReg(Zero)
       .addImm(1);
   // TrueBB falls through.
   TrueBB->addSuccessor(PostBB);
@@ -636,7 +661,9 @@ bool RISCVPreRAExpandPseudo::expandSLTIU(
       .addReg(TrueReg)
       .addMBB(TrueBB);
 
+  NextMBBI = OrigBB.end();
   MI.eraseFromParent();
+
   return true;
 }
 
