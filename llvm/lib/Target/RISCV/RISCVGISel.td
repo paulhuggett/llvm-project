@@ -41,9 +41,12 @@ def GIImmPlus1 :
 def PtrVT : PtrValueTypeByHwMode<XLenVT, 0>;
 
 // Define pattern expansions for pointer ult/slt conditional codes
+// *PBH*: Added Sltiu predicate
 let Predicates = [HasVendorXKeysomSltiu] in
 def : Pat<(XLenVT (setult (PtrVT GPR:$rs1), simm12:$imm12)),
           (SLTIU GPR:$rs1, simm12:$imm12)>;
+// *PBH*: Added sltu predicate
+let Predicates = [HasVendorXKeysomSltu] in
 def : Pat<(XLenVT (setult (PtrVT GPR:$rs1), (PtrVT GPR:$rs2))),
           (SLTU GPR:$rs1, GPR:$rs2)>;
 def : Pat<(XLenVT (setlt (PtrVT GPR:$rs1), simm12:$imm12)),
@@ -54,6 +57,7 @@ def : Pat<(XLenVT (setlt (PtrVT GPR:$rs1), (PtrVT GPR:$rs2))),
 // Define pattern expansions for setcc operations that aren't directly
 // handled by a RISC-V instruction.
 foreach Ty = [PtrVT, XLenVT] in {
+// *PBH*: Added Sltiu predicate
 let Predicates = [HasVendorXKeysomSltiu] in {
 def : Pat<(XLenVT (seteq (Ty GPR:$rs1), (Ty 0))), (SLTIU GPR:$rs1, 1)>;
 def : Pat<(XLenVT (seteq (Ty GPR:$rs1), (Ty simm12Plus1:$imm12))),
@@ -61,6 +65,7 @@ def : Pat<(XLenVT (seteq (Ty GPR:$rs1), (Ty simm12Plus1:$imm12))),
 def : Pat<(XLenVT (seteq (Ty GPR:$rs1), (Ty GPR:$rs2))),
           (SLTIU (XOR GPR:$rs1, GPR:$rs2), 1)>;
 }
+// *PBH*: End added sltiu predicate
 def : Pat<(XLenVT (setne (Ty GPR:$rs1), (Ty 0))), (SLTU (XLenVT X0), GPR:$rs1)>;
 def : Pat<(XLenVT (setne (Ty GPR:$rs1), (Ty simm12Plus1:$imm12))),
           (SLTU (XLenVT X0), (ADDI GPR:$rs1, (NegImm simm12Plus1:$imm12)))>;
