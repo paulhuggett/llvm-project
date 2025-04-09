@@ -783,6 +783,8 @@ def ANDI  : ALU_ri<0b111, "andi">;
 let Predicates = [HasVendorXKeysomSlli] in
 def SLLI : Shift_ri<0b00000, 0b001, "slli">,
            Sched<[WriteShiftImm, ReadShiftImm]>;
+// *PBH*: Added srli predicate
+let Predicates = [HasVendorXKeysomSrli] in
 def SRLI : Shift_ri<0b00000, 0b101, "srli">,
            Sched<[WriteShiftImm, ReadShiftImm]>;
 def SRAI : Shift_ri<0b01000, 0b101, "srai">,
@@ -1502,8 +1504,8 @@ def : Pat<(i64 (sub 0, (and_oneuse GPR:$rs, 1))),
           (SRAI (i64 (SLLI $rs, 63)), 63)>, Requires<[IsRV64, HasVendorXKeysomSlli]>;
 
 // AND with leading/trailing ones mask exceeding simm32/simm12.
-// *PBH*: Added slli predicate
-let Predicates = [HasVendorXKeysomSlli] in {
+// *PBH*: Added slli & srli predicate
+let Predicates = [HasVendorXKeysomSlli, HasVendorXKeysomSrli] in {
 def : Pat<(i64 (and GPR:$rs, immop_oneuse<LeadingOnesMask>:$mask)),
           (SLLI (i64 (SRLI $rs, (TrailingZeros imm:$mask))),
                 (TrailingZeros imm:$mask))>;

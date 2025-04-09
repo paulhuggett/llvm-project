@@ -1289,6 +1289,15 @@ defm Xori : KeysomPredicates<FeatureVendorXKeysomNoXori>;
 def FeatureVendorXKeysomNoSlli : KeysomExtension<"Slli">;
 defm Slli : KeysomPredicates<FeatureVendorXKeysomNoSlli>;
 
+def FeatureVendorXKeysomNoSrli : KeysomExtension<"Srli">;
+defm Srli : KeysomPredicates<FeatureVendorXKeysomNoSrli>;
+
+def FeatureVendorXKeysomNoSrai : KeysomExtension<"Srai">;
+defm Srai : KeysomPredicates<FeatureVendorXKeysomNoSrai>;
+
+def FeatureVendorXKeysomNoSrl : KeysomExtension<"Srl">;
+defm Srl : KeysomPredicates<FeatureVendorXKeysomNoSrl>;
+
 def FeatureVendorXKeysomNoLui : KeysomExtension<"Lui">;
 defm Lui : KeysomPredicates<FeatureVendorXKeysomNoLui>;
 

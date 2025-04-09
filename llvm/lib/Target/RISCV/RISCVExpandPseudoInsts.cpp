@@ -485,7 +485,8 @@ private:
                    MachineBasicBlock::iterator &NextMBBI);
   bool expandSLTU(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
                   MachineBasicBlock::iterator &NextMBBI);
-
+  bool expandSRL(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
+                 MachineBasicBlock::iterator &NextMBBI);
 #ifndef NDEBUG
   unsigned getInstSizeInBytes(const MachineFunction &MF) const {
     unsigned Size = 0;
@@ -550,6 +551,9 @@ bool RISCVPreRAExpandPseudo::expandMI(MachineBasicBlock &MBB,
     return expandSLTIU(MBB, MBBI, NextMBBI);
   case RISCV::PseudoSLTU:
     return expandSLTU(MBB, MBBI, NextMBBI);
+  case RISCV::SRLI:
+  case RISCV::SRL:
+    return expandSRL(MBB, MBBI, NextMBBI);
   }
   return false;
 }
@@ -668,6 +672,128 @@ bool RISCVPreRAExpandPseudo::expandSLTIU(
   NextMBBI = OrigBB.end();
   MI.eraseFromParent();
 
+  return true;
+}
+
+// Use to expand both SRLI and SRL
+bool RISCVPreRAExpandPseudo::expandSRL(MachineBasicBlock &OrigBB,
+                                       MachineBasicBlock::iterator MBBI,
+                                       MachineBasicBlock::iterator &NextMBBI) {
+  MachineFunction *const MF = OrigBB.getParent();
+  if (!STI->hasVendorXKeysomNoSrl() && !STI->hasVendorXKeysomNoSrli()) {
+    return false;
+  }
+
+  static constexpr auto Zero = RISCV::X0;
+  MachineInstr &MI = *MBBI;
+  assert(MI.getNumOperands() == 3 && "Expected SRL to have 3 operands");
+  DebugLoc DL = MI.getDebugLoc();
+
+  Register Rd = MI.getOperand(0).getReg();
+  Register Rs1 = MI.getOperand(1).getReg();
+  MachineOperand & Op2 = MI.getOperand(2);
+
+  MachineRegisterInfo &MRI = MF->getRegInfo();
+  const TargetRegisterClass * const RegClass = MRI.getRegClass(Rd);
+
+  if (Op2.isImm() && !STI->hasVendorXKeysomNoSrl()) {
+    // The second operand is an immediate (the instruction is we're expanding
+    // is SRLI) and the SRL instruction is available.
+    //
+    //   srli rd, rs1, shamt
+    //
+    // Can be trivially expanded to:
+    //
+    //   addi Rs2, Zero, shamt
+    //   srl rd, rs1, Rs2
+    Register Rs2 = MRI.createVirtualRegister(RegClass);
+    BuildMI(OrigBB, MBBI, DL, TII->get(RISCV::ADDI), Rs2)
+        .addReg(Zero)
+        .addImm(Op2.getImm());
+    BuildMI(OrigBB, MBBI, DL, TII->get(RISCV::SRL), Rd).addReg(Rs1).addReg(Rs2);
+
+    MI.eraseFromParent();
+    return true;
+  }
+
+  // Use sra and a mask. Starting with the instruction:
+  //
+  //   sra[i] rd, rs1, rd2/shamt
+  //
+  // The replacement looks like:
+  //
+  //   ShiftA = sra rs1, rs2
+  //   AllOnes = addi Zero, -1
+  //   Dist = sub Xlen, rd2
+  //   Mask = sll AllOnes, Dist
+  //   rd = ShiftA & Mask
+  //
+  // If the shift amount is an immediate, we can precompute Dist = Xlen-shamt.
+  //
+  //   ShiftA = srai rs1, shamt
+  //   AllOnes = addi Zero, -1
+  //   Dist = addi Zero, Xlen-shamt
+  //   Mask = sll AllOnes, Dist
+  //   rd = ShiftA & Mask
+  //
+  // If slli is available, we can avoid the register for Dist.
+  //
+  //   ShiftA = srai rs1, shamt
+  //   AllOnes = addi Zero, -1
+  //   Mask = slli AllOnes, Xlen-shamt
+  //   rd = ShiftA & Mask
+  //
+  // If srai is unavailable then it can be replaced by:
+  //
+  //   SraImm = addi Zero, shamt
+  //   ShiftA = sra rs1, SraImm
+
+  Register ShiftA = MRI.createVirtualRegister(RegClass);
+  if (Op2.isImm()) {
+    if (!STI->hasVendorXKeysomNoSrai()) {
+      BuildMI(OrigBB, MBBI, DL, TII->get(RISCV::SRAI), ShiftA)
+        .addReg(Rs1)
+        .addImm(Op2.getImm());
+    } else {
+      Register SraImm = MRI.createVirtualRegister(RegClass);
+      BuildMI(OrigBB, MBBI, DL, TII->get(RISCV::ADDI), SraImm)
+        .addReg(Zero)
+        .addImm(Op2.getImm());
+      BuildMI(OrigBB, MBBI, DL, TII->get(RISCV::SRA), ShiftA)
+        .addReg(Rs1)
+        .addReg(SraImm);
+    }
+  } else {
+    BuildMI(OrigBB, MBBI, DL, TII->get(RISCV::SRA), ShiftA)
+      .addReg(Rs1)
+      .addReg(Op2.getReg());
+  }
+
+  Register AllOnes = MRI.createVirtualRegister(RegClass);
+  BuildMI(OrigBB, MBBI, DL, TII->get(RISCV::ADDI), AllOnes)
+      .addReg(Zero)
+      .addImm(-1);
+
+  Register Mask = MRI.createVirtualRegister(RegClass);
+  if (Op2.isImm() && !STI->hasVendorXKeysomNoSlli()) {
+    BuildMI(OrigBB, MBBI, DL, TII->get(RISCV::SLLI), Mask).addReg(AllOnes).addImm(STI->getXLen() - Op2.getImm());
+  } else {
+    Register Dist = MRI.createVirtualRegister(RegClass);
+    if (Op2.isImm()) {
+      BuildMI(OrigBB, MBBI, DL, TII->get(RISCV::ADDI), Dist).addReg(Zero).addImm(STI->getXLen() - Op2.getImm());
+    } else {
+      Register XLenImm = MRI.createVirtualRegister(RegClass);
+      BuildMI(OrigBB, MBBI, DL, TII->get(RISCV::ADDI), XLenImm).addReg(Zero).addImm(STI->getXLen());
+      BuildMI(OrigBB, MBBI, DL, TII->get(RISCV::SUB), Dist).addReg(XLenImm).addReg(Op2.getReg());
+    }
+    BuildMI(OrigBB, MBBI, DL, TII->get(RISCV::SLL), Mask).addReg(AllOnes).addReg(Dist);
+  }
+
+  BuildMI(OrigBB, MBBI, DL, TII->get(RISCV::AND), Rd)
+      .addReg(ShiftA)
+      .addReg(Mask);
+
+  MI.eraseFromParent();
   return true;
 }
 
