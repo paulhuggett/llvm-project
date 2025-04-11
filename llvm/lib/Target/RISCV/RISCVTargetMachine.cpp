@@ -35,6 +35,7 @@
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Target/TargetOptions.h"
+//#include "llvm/TargetParser/SubtargetFeature.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Vectorize/EVLIndVarSimplify.h"
@@ -198,6 +199,20 @@ RISCVTargetMachine::RISCVTargetMachine(const Target &T, const Triple &TT,
   setCFIFixup(true);
 }
 
+#if 0
+static std::string mergeSubtargetFeatures(const std::string &A,
+                                          const std::string &B) {
+  if (B.empty()) {
+    return A;
+  }
+  SubtargetFeatures Features{A};
+  std::vector<std::string> V;
+  SubtargetFeatures::Split(V, B);
+  Features.addFeaturesVector(V);
+  return Features.getString();
+}
+#endif
+
 const RISCVSubtarget *
 RISCVTargetMachine::getSubtargetImpl(const Function &F) const {
   Attribute CPUAttr = F.getFnAttribute("target-cpu");
@@ -208,8 +223,15 @@ RISCVTargetMachine::getSubtargetImpl(const Function &F) const {
       CPUAttr.isValid() ? CPUAttr.getValueAsString().str() : TargetCPU;
   std::string TuneCPU =
       TuneAttr.isValid() ? TuneAttr.getValueAsString().str() : CPU;
+#if 0
   std::string FS =
       FSAttr.isValid() ? FSAttr.getValueAsString().str() : TargetFS;
+#elif 1
+  std::string FS = join_items(',', FSAttr.getValueAsString().str(), TargetFS);
+#else
+  std::string FS =
+      mergeSubtargetFeatures(FSAttr.getValueAsString().str(), TargetFS);
+#endif
 
   unsigned RVVBitsMin = RVVVectorBitsMinOpt;
   unsigned RVVBitsMax = RVVVectorBitsMaxOpt;
