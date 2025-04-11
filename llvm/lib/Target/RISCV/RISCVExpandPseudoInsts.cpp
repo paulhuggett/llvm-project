@@ -485,6 +485,8 @@ private:
                    MachineBasicBlock::iterator &NextMBBI);
   bool expandSLTU(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
                   MachineBasicBlock::iterator &NextMBBI);
+  bool expandSRLI(MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
+                  MachineBasicBlock::iterator &NextMBBI);
   bool expandSRL(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
                  MachineBasicBlock::iterator &NextMBBI);
 #ifndef NDEBUG
@@ -552,6 +554,7 @@ bool RISCVPreRAExpandPseudo::expandMI(MachineBasicBlock &MBB,
   case RISCV::PseudoSLTU:
     return expandSLTU(MBB, MBBI, NextMBBI);
   case RISCV::SRLI:
+    return expandSRLI(MBB, MBBI, NextMBBI);
   case RISCV::SRL:
     return expandSRL(MBB, MBBI, NextMBBI);
   }
@@ -675,12 +678,210 @@ bool RISCVPreRAExpandPseudo::expandSLTIU(
   return true;
 }
 
+class InstructionHelper {
+public:
+  InstructionHelper(MachineRegisterInfo &MRI,
+                    const TargetRegisterClass *const RegClass,
+                    MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
+                    const DebugLoc &DL, const RISCVSubtarget *STI,
+                    const RISCVInstrInfo *TII)
+      : MRI_{MRI}, RegClass_{RegClass}, OrigBB_{OrigBB}, MBBI_{MBBI}, DL_{DL},
+        STI_{STI}, TII_{TII} {}
+  [[nodiscard]] Register rvAddi(Register Rs1, int64_t Immediate) {
+    return this->buildImmediate(true, RISCV::ADDI, RISCV::ADDI, Rs1, Immediate);
+  }
+  void rvAddi(Register Rd, Register Rs1, int64_t Immediate) {
+    this->buildImmediate(true, RISCV::ADDI, RISCV::ADDI, Rd, Rs1, Immediate);
+  }
+
+  [[nodiscard]] Register rvSub(Register Rs1, Register Rs2) {
+    return this->buildTwoReg(RISCV::SUB, Rs1, Rs2);
+  }
+  void rvSub(Register Rd, Register Rs1, Register Rs2) {
+    this->buildTwoReg(RISCV::SUB, Rd, Rs1, Rs2);
+  }
+
+  [[nodiscard]] Register rvXori(Register Rs1, int64_t Immediate) {
+    return this->buildImmediate(!STI_->hasVendorXKeysomNoXori(), RISCV::XORI,
+                                RISCV::XOR, Rs1, Immediate);
+  }
+  void rvXori(Register Rd, Register Rs1, int64_t Immediate) {
+    this->buildImmediate(!STI_->hasVendorXKeysomNoXori(), RISCV::XORI,
+                         RISCV::XOR, Rd, Rs1, Immediate);
+  }
+  [[nodiscard]] Register rvAnd(Register Rs1, int64_t Immediate) {
+    return this->buildImmediate(!STI_->hasVendorXKeysomNoAndi(), RISCV::ANDI,
+                                RISCV::AND, Rs1, Immediate);
+  }
+  [[nodiscard]] Register rvAnd(Register Rs1, Register Rs2) {
+    return this->buildTwoReg(RISCV::AND, Rs1, Rs2);
+  }
+  void rvAnd(Register Rd, Register Rs1, Register Rs2) {
+    this->buildTwoReg(RISCV::AND, Rd, Rs1, Rs2);
+  }
+
+  [[nodiscard]] Register rvAndi(Register Rs1, int64_t Immediate) {
+    return this->buildImmediate(!STI_->hasVendorXKeysomNoAndi(), RISCV::ANDI,
+                                RISCV::AND, Rs1, Immediate);
+  }
+  void rvAndi(Register Rd, Register Rs1, int64_t Immediate) {
+    return this->buildImmediate(!STI_->hasVendorXKeysomNoAndi(), RISCV::ANDI,
+                                RISCV::AND, Rd, Rs1, Immediate);
+  }
+
+  [[nodiscard]] Register rvOri(Register Rs1, int64_t Immediate) {
+    return this->buildImmediate(!STI_->hasVendorXKeysomNoOri(), RISCV::ORI,
+                                RISCV::OR, Rs1, Immediate);
+  }
+  void rvOri(Register Rd, Register Rs1, int64_t Immediate) {
+    return this->buildImmediate(!STI_->hasVendorXKeysomNoOri(), RISCV::ORI,
+                                RISCV::OR, Rd, Rs1, Immediate);
+  }
+
+  [[nodiscard]] Register rvSll(Register Rs1, Register Rs2) {
+    return this->buildTwoReg(RISCV::SLL, Rs1, Rs2);
+  }
+  [[nodiscard]] Register rvSlli(Register Rs1, int64_t ShAmt) {
+    return this->buildImmediate(!STI_->hasVendorXKeysomNoSlli(), RISCV::SLLI,
+                                RISCV::SLL, Rs1, ShAmt);
+  }
+
+  [[nodiscard]] Register rvSra(Register Rs1, Register Rs2) {
+    return this->buildTwoReg(RISCV::SRA, Rs1, Rs2);
+  }
+  void rvSra(Register Rd, Register Rs1, Register Rs2) {
+    this->buildTwoReg(RISCV::SRA, Rd, Rs1, Rs2);
+  }
+
+  [[nodiscard]] Register rvSrai(Register Rs1, int64_t ShAmt) {
+    return this->buildImmediate(!STI_->hasVendorXKeysomNoSrai(), RISCV::SRAI,
+                                RISCV::SRA, Rs1, ShAmt);
+  }
+  void rvSrai(Register Rd, Register Rs1, int64_t ShAmt) {
+    this->buildImmediate(!STI_->hasVendorXKeysomNoSrai(), RISCV::SRAI,
+                         RISCV::SRA, Rd, Rs1, ShAmt);
+  }
+
+  void rvSlli(Register Rd, Register Rs1, int64_t ShAmt) {
+    return this->buildImmediate(!STI_->hasVendorXKeysomNoSlli(), RISCV::SLLI,
+                                RISCV::SLL, Rd, Rs1, ShAmt);
+  }
+
+  [[nodiscard]] Register rvSrli(Register Rs1, int64_t ShAmt) {
+    return this->buildImmediate(!STI_->hasVendorXKeysomNoSrli(), RISCV::SRLI,
+                                RISCV::SRL, Rs1, ShAmt);
+  }
+  void rvSrli(Register Rd, Register Rs1, int64_t ShAmt) {
+    return this->buildImmediate(!STI_->hasVendorXKeysomNoSrli(), RISCV::SRLI,
+                                RISCV::SRL, Rd, Rs1, ShAmt);
+  }
+
+  [[nodiscard]] Register rvSrl(Register Rs1, Register Rs2) {
+    return this->buildTwoReg(RISCV::SRL, Rs1, Rs2);
+  }
+  void rvSrl(Register Rd, Register Rs1, Register Rs2) {
+    this->buildTwoReg(RISCV::SRL, Rd, Rs1, Rs2);
+  }
+
+private:
+  [[nodiscard]] Register buildImmediate(bool HasInst, int ImmInstr,
+                                        int RegInstr, Register Rs1,
+                                        int64_t Immediate) {
+    Register Rd = MRI_.createVirtualRegister(RegClass_);
+    this->buildImmediate(HasInst, ImmInstr, RegInstr, Rd, Rs1, Immediate);
+    return Rd;
+  }
+  void buildImmediate(bool HasInst, int ImmInstr, int RegInstr, Register Rd,
+                      Register Rs1, int64_t Immediate) {
+    if (HasInst) {
+      BuildMI(OrigBB_, MBBI_, DL_, TII_->get(ImmInstr), Rd)
+          .addReg(Rs1)
+          .addImm(Immediate);
+      return;
+    }
+    auto ImmReg = rvAddi(RISCV::X0, Immediate);
+    this->buildTwoReg(RegInstr, Rd, Rs1, ImmReg);
+  }
+
+  [[nodiscard]] Register buildTwoReg(int Instr, Register Rs1, Register Rs2) {
+    Register Rd = MRI_.createVirtualRegister(RegClass_);
+    this->buildTwoReg(Instr, Rd, Rs1, Rs2);
+    return Rd;
+  }
+  void buildTwoReg(int Instr, Register Rd, Register Rs1, Register Rs2) {
+    BuildMI(OrigBB_, MBBI_, DL_, TII_->get(Instr), Rd).addReg(Rs1).addReg(Rs2);
+  }
+
+  MachineRegisterInfo &MRI_;
+  const TargetRegisterClass *RegClass_;
+  MachineBasicBlock &OrigBB_;
+  MachineBasicBlock::iterator MBBI_;
+  const DebugLoc &DL_;
+
+  const RISCVSubtarget *STI_;
+  const RISCVInstrInfo *TII_;
+};
+
+bool RISCVPreRAExpandPseudo::expandSRLI(MachineBasicBlock &OrigBB,
+                                        MachineBasicBlock::iterator MBBI,
+                                        MachineBasicBlock::iterator &NextMBBI) {
+  MachineFunction *const MF = OrigBB.getParent();
+  if (!STI->hasVendorXKeysomNoSrli()) {
+    return false;
+  }
+
+  static constexpr auto Zero = RISCV::X0;
+  MachineInstr &MI = *MBBI;
+  assert(MI.getNumOperands() == 3 && "Expected SRLI to have 3 operands");
+  DebugLoc DL = MI.getDebugLoc();
+
+  Register Rd = MI.getOperand(0).getReg();
+  Register Rs1 = MI.getOperand(1).getReg();
+  int64_t ShAmt = MI.getOperand(2).getImm();
+
+  MachineRegisterInfo &MRI = MF->getRegInfo();
+  InstructionHelper Helper{MRI, MRI.getRegClass(Rd), OrigBB,   MBBI,
+                           DL,  this->STI,           this->TII};
+
+  if (!STI->hasVendorXKeysomNoSrl()) {
+    // The SRL instruction is available, so use it.
+    Helper.rvSrli(Rd, Rs1, ShAmt);
+    MI.eraseFromParent();
+    return true;
+  }
+
+  // Use sra and a mask. Starting with the instruction:
+  //
+  //   rd = srli rs1, shamt
+  //
+  // The replacement looks like:
+  //
+  //   ShiftA = sra rs1, rs2
+  //   SextMask = (1 << (XLen - shamt)) - 1
+  //   rd = ShiftA & SextMask
+  auto ShiftA = Helper.rvSrai(Rs1, ShAmt);
+  // Now mask out the effect of the sign extension that SRA performs.
+  const auto Mask = (1U << (STI->getXLen() - ShAmt)) - 1U;
+  if (Mask >= 1 << 12) {
+    Register UpperImm = MRI.createVirtualRegister(MRI.getRegClass(Rd));
+    // TODO: in theory, LUI is an instruction that can be disabled!
+    BuildMI(OrigBB, MBBI, DL, TII->get(RISCV::LUI), UpperImm)
+        .addImm((Mask >> 12) + 1U);
+    auto FullMask = Helper.rvAddi(UpperImm, -1);
+    Helper.rvAnd(Rd, ShiftA, FullMask);
+  } else {
+    Helper.rvAndi(Rd, ShiftA, Mask);
+  }
+  MI.eraseFromParent();
+  return true;
+}
+
 // Use to expand both SRLI and SRL
 bool RISCVPreRAExpandPseudo::expandSRL(MachineBasicBlock &OrigBB,
                                        MachineBasicBlock::iterator MBBI,
                                        MachineBasicBlock::iterator &NextMBBI) {
   MachineFunction *const MF = OrigBB.getParent();
-  if (!STI->hasVendorXKeysomNoSrl() && !STI->hasVendorXKeysomNoSrli()) {
+  if (!STI->hasVendorXKeysomNoSrl()) {
     return false;
   }
 
@@ -691,107 +892,42 @@ bool RISCVPreRAExpandPseudo::expandSRL(MachineBasicBlock &OrigBB,
 
   Register Rd = MI.getOperand(0).getReg();
   Register Rs1 = MI.getOperand(1).getReg();
-  MachineOperand & Op2 = MI.getOperand(2);
+  Register Rs2 = MI.getOperand(2).getReg();
 
   MachineRegisterInfo &MRI = MF->getRegInfo();
-  const TargetRegisterClass * const RegClass = MRI.getRegClass(Rd);
+  const TargetRegisterClass *const RegClass = MRI.getRegClass(Rd);
 
-  if (Op2.isImm() && !STI->hasVendorXKeysomNoSrl()) {
-    // The second operand is an immediate (the instruction is we're expanding
-    // is SRLI) and the SRL instruction is available.
-    //
-    //   srli rd, rs1, shamt
-    //
-    // Can be trivially expanded to:
-    //
-    //   addi Rs2, Zero, shamt
-    //   srl rd, rs1, Rs2
-    Register Rs2 = MRI.createVirtualRegister(RegClass);
-    BuildMI(OrigBB, MBBI, DL, TII->get(RISCV::ADDI), Rs2)
-        .addReg(Zero)
-        .addImm(Op2.getImm());
-    BuildMI(OrigBB, MBBI, DL, TII->get(RISCV::SRL), Rd).addReg(Rs1).addReg(Rs2);
-
-    MI.eraseFromParent();
-    return true;
-  }
+  InstructionHelper Helper{MRI, RegClass,  OrigBB,   MBBI,
+                           DL,  this->STI, this->TII};
 
   // Use sra and a mask. Starting with the instruction:
   //
-  //   sra[i] rd, rs1, rd2/shamt
+  //   rd = srl rs1, rs2
   //
   // The replacement looks like:
   //
   //   ShiftA = sra rs1, rs2
   //   AllOnes = addi Zero, -1
-  //   Dist = sub Xlen, rd2
-  //   Mask = sll AllOnes, Dist
-  //   rd = ShiftA & Mask
-  //
-  // If the shift amount is an immediate, we can precompute Dist = Xlen-shamt.
-  //
-  //   ShiftA = srai rs1, shamt
-  //   AllOnes = addi Zero, -1
-  //   Dist = addi Zero, Xlen-shamt
-  //   Mask = sll AllOnes, Dist
-  //   rd = ShiftA & Mask
-  //
-  // If slli is available, we can avoid the register for Dist.
-  //
-  //   ShiftA = srai rs1, shamt
-  //   AllOnes = addi Zero, -1
-  //   Mask = slli AllOnes, Xlen-shamt
-  //   rd = ShiftA & Mask
-  //
-  // If srai is unavailable then it can be replaced by:
-  //
-  //   SraImm = addi Zero, shamt
-  //   ShiftA = sra rs1, SraImm
+  //   Rs2Bounded = and rs2, 0b11111   ; use rs2's least-significant 5 bits
+  //   Dist = sub Xlen, Rs2Bounded     ; how far to shift AllOnes
+  //   SextMaskInv = sll AllOnes, Dist ; create the inverted mask
+  //   SextMask = xori SextMaskInv, -1 ; invert to get the true mask
+  //   rd = ShiftA & SextMask
 
-  Register ShiftA = MRI.createVirtualRegister(RegClass);
-  if (Op2.isImm()) {
-    if (!STI->hasVendorXKeysomNoSrai()) {
-      BuildMI(OrigBB, MBBI, DL, TII->get(RISCV::SRAI), ShiftA)
-        .addReg(Rs1)
-        .addImm(Op2.getImm());
-    } else {
-      Register SraImm = MRI.createVirtualRegister(RegClass);
-      BuildMI(OrigBB, MBBI, DL, TII->get(RISCV::ADDI), SraImm)
-        .addReg(Zero)
-        .addImm(Op2.getImm());
-      BuildMI(OrigBB, MBBI, DL, TII->get(RISCV::SRA), ShiftA)
-        .addReg(Rs1)
-        .addReg(SraImm);
-    }
-  } else {
-    BuildMI(OrigBB, MBBI, DL, TII->get(RISCV::SRA), ShiftA)
-      .addReg(Rs1)
-      .addReg(Op2.getReg());
-  }
+  auto ShiftA = Helper.rvSra(Rs1, Rs2);
+  auto AllOnes = Helper.rvAddi(Zero, -1);
+  // Now mask out the effect of the sign extension that SRA performs.
+  // Zero all but the lower 5 bits of rs2
+  auto Rs2Bounded = Helper.rvAndi(Rs2, 0b11111);
+  // How far to shift AllOnes
+  auto XLenImm = Helper.rvAddi(Zero, STI->getXLen());
+  auto Dist = Helper.rvSub(XLenImm, Rs2Bounded);
+  // Create the inverted mask
+  Register SextMaskInv = Helper.rvSll(AllOnes, Dist);
+  // Invert to get the true mask
+  Register SextMask = Helper.rvXori(SextMaskInv, -1);
 
-  Register AllOnes = MRI.createVirtualRegister(RegClass);
-  BuildMI(OrigBB, MBBI, DL, TII->get(RISCV::ADDI), AllOnes)
-      .addReg(Zero)
-      .addImm(-1);
-
-  Register Mask = MRI.createVirtualRegister(RegClass);
-  if (Op2.isImm() && !STI->hasVendorXKeysomNoSlli()) {
-    BuildMI(OrigBB, MBBI, DL, TII->get(RISCV::SLLI), Mask).addReg(AllOnes).addImm(STI->getXLen() - Op2.getImm());
-  } else {
-    Register Dist = MRI.createVirtualRegister(RegClass);
-    if (Op2.isImm()) {
-      BuildMI(OrigBB, MBBI, DL, TII->get(RISCV::ADDI), Dist).addReg(Zero).addImm(STI->getXLen() - Op2.getImm());
-    } else {
-      Register XLenImm = MRI.createVirtualRegister(RegClass);
-      BuildMI(OrigBB, MBBI, DL, TII->get(RISCV::ADDI), XLenImm).addReg(Zero).addImm(STI->getXLen());
-      BuildMI(OrigBB, MBBI, DL, TII->get(RISCV::SUB), Dist).addReg(XLenImm).addReg(Op2.getReg());
-    }
-    BuildMI(OrigBB, MBBI, DL, TII->get(RISCV::SLL), Mask).addReg(AllOnes).addReg(Dist);
-  }
-
-  BuildMI(OrigBB, MBBI, DL, TII->get(RISCV::AND), Rd)
-      .addReg(ShiftA)
-      .addReg(Mask);
+  Helper.rvAnd(Rd, ShiftA, SextMask);
 
   MI.eraseFromParent();
   return true;
