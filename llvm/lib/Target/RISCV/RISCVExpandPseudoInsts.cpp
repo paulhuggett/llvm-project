@@ -485,10 +485,12 @@ private:
                    MachineBasicBlock::iterator &NextMBBI);
   bool expandSLTU(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
                   MachineBasicBlock::iterator &NextMBBI);
-  bool expandSRLI(MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
+  bool expandSRLI(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
                   MachineBasicBlock::iterator &NextMBBI);
   bool expandSRL(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
                  MachineBasicBlock::iterator &NextMBBI);
+  bool expandSRAI(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
+                  MachineBasicBlock::iterator &NextMBBI);
 #ifndef NDEBUG
   unsigned getInstSizeInBytes(const MachineFunction &MF) const {
     unsigned Size = 0;
@@ -557,6 +559,8 @@ bool RISCVPreRAExpandPseudo::expandMI(MachineBasicBlock &MBB,
     return expandSRLI(MBB, MBBI, NextMBBI);
   case RISCV::SRL:
     return expandSRL(MBB, MBBI, NextMBBI);
+  case RISCV::SRAI:
+    return expandSRAI(MBB, MBBI, NextMBBI);
   }
   return false;
 }
@@ -830,7 +834,6 @@ bool RISCVPreRAExpandPseudo::expandSRLI(MachineBasicBlock &OrigBB,
     return false;
   }
 
-  static constexpr auto Zero = RISCV::X0;
   MachineInstr &MI = *MBBI;
   assert(MI.getNumOperands() == 3 && "Expected SRLI to have 3 operands");
   DebugLoc DL = MI.getDebugLoc();
@@ -1013,6 +1016,27 @@ bool RISCVPreRAExpandPseudo::expandSLTU(MachineBasicBlock &OrigBB,
   NextMBBI = OrigBB.end();
   MI.eraseFromParent();
 
+  return true;
+}
+
+bool RISCVPreRAExpandPseudo::expandSRAI(MachineBasicBlock &OrigBB,
+                                        MachineBasicBlock::iterator MBBI,
+                                        MachineBasicBlock::iterator &NextMBBI) {
+  if (!STI->hasVendorXKeysomNoSrai()) {
+    return false;
+  }
+  MachineInstr &MI = *MBBI;
+  assert(MI.getNumOperands() == 3 && "Expected SRAI to have 3 operands");
+  Register Rd = MI.getOperand(0).getReg();
+  Register Rs1 = MI.getOperand(1).getReg();
+  int64_t ShAmt = MI.getOperand(2).getImm();
+
+  MachineRegisterInfo &MRI = OrigBB.getParent()->getRegInfo();
+  InstructionHelper Helper{MRI,      MRI.getRegClass(Rd), OrigBB,
+                           MBBI,     MI.getDebugLoc(),    this->STI,
+                           this->TII};
+  Helper.rvSrai(Rd, Rs1, ShAmt);
+  MI.eraseFromParent();
   return true;
 }
 

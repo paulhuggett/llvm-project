@@ -787,6 +787,8 @@ def SLLI : Shift_ri<0b00000, 0b001, "slli">,
 let Predicates = [HasVendorXKeysomSrli] in
 def SRLI : Shift_ri<0b00000, 0b101, "srli">,
            Sched<[WriteShiftImm, ReadShiftImm]>;
+// *PBH*: Added srai predicate
+let Predicates = [HasVendorXKeysomSrai] in
 def SRAI : Shift_ri<0b01000, 0b101, "srai">,
            Sched<[WriteShiftImm, ReadShiftImm]>;
 
@@ -1191,6 +1193,8 @@ def : InstAlias<"sll $rd, $rs1, $shamt",
                 (SLLI  GPR:$rd, GPR:$rs1, uimmlog2xlen:$shamt)>;
 def : InstAlias<"srl $rd, $rs1, $shamt",
                 (SRLI  GPR:$rd, GPR:$rs1, uimmlog2xlen:$shamt)>;
+// *PBH*: Added srai predicate
+let Predicates = [HasVendorXKeysomSrai] in
 def : InstAlias<"sra $rd, $rs1, $shamt",
                 (SRAI  GPR:$rd, GPR:$rs1, uimmlog2xlen:$shamt)>;
 let Predicates = [IsRV64] in {
@@ -1478,6 +1482,8 @@ def : PatGprSimm12<xor, XORI>;
 let Predicates = [HasVendorXKeysomSlli] in
 def : PatGprUimmLog2XLen<shl, SLLI>;
 def : PatGprUimmLog2XLen<srl, SRLI>;
+// *PBH*: Added srai predicate
+let Predicates = [HasVendorXKeysomSrai] in
 def : PatGprUimmLog2XLen<sra, SRAI>;
 
 // Select 'or' as ADDI if the immediate bits are known to be 0 in $rs1. This
@@ -1497,11 +1503,14 @@ def add_like : PatFrags<(ops node:$lhs, node:$rhs),
 
 // negate of low bit can be done via two (compressible) shifts.  The negate
 // is never compressible since rs1 and rd can't be the same register.
-// *PBH*: Added slli predicate
+// *PBH*: Added srai & slli predicates
+let Predicates = [HasVendorXKeysomSrai, HasVendorXKeysomSlli] in {
 def : Pat<(i32 (sub 0, (and_oneuse GPR:$rs, 1))),
           (SRAI (i32 (SLLI $rs, 31)), 31)>, Requires<[IsRV32, HasVendorXKeysomSlli]>;
 def : Pat<(i64 (sub 0, (and_oneuse GPR:$rs, 1))),
           (SRAI (i64 (SLLI $rs, 63)), 63)>, Requires<[IsRV64, HasVendorXKeysomSlli]>;
+}
+// *PBH*: End added
 
 // AND with leading/trailing ones mask exceeding simm32/simm12.
 // *PBH*: Added slli & srli predicate
@@ -1513,6 +1522,7 @@ def : Pat<(XLenVT (and GPR:$rs, immop_oneuse<TrailingOnesMask>:$mask)),
           (SRLI (XLenVT (SLLI $rs, (XLenSubTrailingOnes imm:$mask))),
                 (XLenSubTrailingOnes imm:$mask))>;
 }
+// *PBH*: End added
 
 // Match both a plain shift and one where the shift amount is masked (this is
 // typically introduced when the legalizer promotes the shift amount and

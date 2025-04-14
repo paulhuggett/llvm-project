@@ -491,7 +491,7 @@ let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCsrli] in
 def C_SRLI : Shift_right<0b00, "c.srli">,
              Sched<[WriteShiftImm, ReadShiftImm]>;
 // *PBH*: Added let Predicates.
-let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCsrai] in
+let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCsrai, HasVendorXKeysomSrai] in
 def C_SRAI : Shift_right<0b01, "c.srai">,
              Sched<[WriteShiftImm, ReadShiftImm]>;
 
@@ -1048,8 +1048,8 @@ def : CompressPat<(LUI GPRNoX0X2:$rd, c_lui_imm:$imm),
 let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCsrli] in
 def : CompressPat<(SRLI GPRC:$rs1, GPRC:$rs1, uimmlog2xlennonzero:$imm),
                   (C_SRLI GPRC:$rs1, uimmlog2xlennonzero:$imm)>;
-// *PBH*: Added HasVendorXKeysomCsrai predicate
-let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCsrai] in
+// *PBH*: Added HasVendorXKeysomCsrai & HasVendorXKeysomSrai predicate
+let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCsrai, HasVendorXKeysomSrai] in
 def : CompressPat<(SRAI GPRC:$rs1, GPRC:$rs1, uimmlog2xlennonzero:$imm),
                   (C_SRAI GPRC:$rs1, uimmlog2xlennonzero:$imm)>;
 // *PBH*: Added HasVendorXKeysomAndi, HasVendorXKeysomCandi predicate
