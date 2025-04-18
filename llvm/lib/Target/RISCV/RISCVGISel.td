@@ -45,14 +45,14 @@ def PtrVT : PtrValueTypeByHwMode<XLenVT, 0>;
 let Predicates = [HasVendorXKeysomSltiu] in
 def : Pat<(XLenVT (setult (PtrVT GPR:$rs1), simm12:$imm12)),
           (SLTIU GPR:$rs1, simm12:$imm12)>;
-// *PBH*: Added sltu predicate
-let Predicates = [HasVendorXKeysomSltu] in
+// *PBH*: Added /SLTU/PseudoSLTU/
 def : Pat<(XLenVT (setult (PtrVT GPR:$rs1), (PtrVT GPR:$rs2))),
-          (SLTU GPR:$rs1, GPR:$rs2)>;
+          (PseudoSLTU GPR:$rs1, GPR:$rs2)>;
 def : Pat<(XLenVT (setlt (PtrVT GPR:$rs1), simm12:$imm12)),
           (SLTI GPR:$rs1, simm12:$imm12)>;
+// *PBH*: Added /SLT/PseudoSLT/
 def : Pat<(XLenVT (setlt (PtrVT GPR:$rs1), (PtrVT GPR:$rs2))),
-          (SLT GPR:$rs1, GPR:$rs2)>;
+          (PseudoSLT GPR:$rs1, GPR:$rs2)>;
 
 // Define pattern expansions for setcc operations that aren't directly
 // handled by a RISC-V instruction.
@@ -66,18 +66,22 @@ def : Pat<(XLenVT (seteq (Ty GPR:$rs1), (Ty GPR:$rs2))),
           (SLTIU (XOR GPR:$rs1, GPR:$rs2), 1)>;
 }
 // *PBH*: End added sltiu predicate
-def : Pat<(XLenVT (setne (Ty GPR:$rs1), (Ty 0))), (SLTU (XLenVT X0), GPR:$rs1)>;
+// *PBH*: /SLTU/PseudoSLTU/
+def : Pat<(XLenVT (setne (Ty GPR:$rs1), (Ty 0))), (PseudoSLTU (XLenVT X0), GPR:$rs1)>;
+// *PBH*: /SLTU/PseudoSLTU/
 def : Pat<(XLenVT (setne (Ty GPR:$rs1), (Ty simm12Plus1:$imm12))),
-          (SLTU (XLenVT X0), (ADDI GPR:$rs1, (NegImm simm12Plus1:$imm12)))>;
+          (PseudoSLTU (XLenVT X0), (ADDI GPR:$rs1, (NegImm simm12Plus1:$imm12)))>;
+// *PBH*: /SLTU/PseudoSLTU/
 def : Pat<(XLenVT (setne (Ty GPR:$rs1), (Ty GPR:$rs2))),
-          (SLTU (XLenVT X0), (XOR GPR:$rs1, GPR:$rs2))>;
+          (PseudoSLTU (XLenVT X0), (XOR GPR:$rs1, GPR:$rs2))>;
 // *PBH*: Added Xori predicate
 let Predicates = [HasVendorXKeysomXori, HasVendorXKeysomSltiu] in
 def : Pat<(XLenVT (setugt (Ty GPR:$rs1), (Ty simm12Minus1NonzeroNonNeg1:$imm))),
           (XORI (SLTIU GPR:$rs1,
                        (ImmPlus1 simm12Minus1NonzeroNonNeg1:$imm)), 1)>;
+// *PBH*: /SLTU/PseudoSLTU/
 def : Pat<(XLenVT (setugt (Ty GPR:$rs1), (Ty GPR:$rs2))),
-          (SLTU GPR:$rs2, GPR:$rs1)>;
+          (PseudoSLTU GPR:$rs2, GPR:$rs1)>;
 // *PBH*: Added Xori predicate
 let Predicates = [HasVendorXKeysomXori] in
 def : Pat<(XLenVT (setgt (Ty GPR:$rs1), (Ty simm12Minus1Nonzero:$imm))),
