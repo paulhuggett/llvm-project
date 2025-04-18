@@ -36,12 +36,12 @@ define i32 @f(i32 %x) nounwind {
 ; RV32I_NO_SLTIU_SLTU-LABEL: f:
 ; RV32I_NO_SLTIU_SLTU:       # %bb.0: # %entry
 ; RV32I_NO_SLTIU_SLTU-NEXT:    addi a1, zero, 43
-; RV32I_NO_SLTIU_SLTU-NEXT:    bgeu a0, a1, .LBB0_2
+; RV32I_NO_SLTIU_SLTU-NEXT:    bltu a0, a1, .LBB0_2
 ; RV32I_NO_SLTIU_SLTU-NEXT:  # %bb.1: # %entry
-; RV32I_NO_SLTIU_SLTU-NEXT:    addi a0, zero, 1
+; RV32I_NO_SLTIU_SLTU-NEXT:    addi a0, zero, 0
 ; RV32I_NO_SLTIU_SLTU-NEXT:    jalr zero, 0(ra)
 ; RV32I_NO_SLTIU_SLTU-NEXT:  .LBB0_2: # %entry
-; RV32I_NO_SLTIU_SLTU-NEXT:    addi a0, zero, 0
+; RV32I_NO_SLTIU_SLTU-NEXT:    addi a0, zero, 1
 ; RV32I_NO_SLTIU_SLTU-NEXT:    jalr zero, 0(ra)
 ;
 ; RV32I_GLISEL_NO_SLTIU-LABEL: f:
@@ -53,12 +53,12 @@ define i32 @f(i32 %x) nounwind {
 ; RV32I_GLISEL_NO_SLTIU_NO_SLTU-LABEL: f:
 ; RV32I_GLISEL_NO_SLTIU_NO_SLTU:       # %bb.0: # %entry
 ; RV32I_GLISEL_NO_SLTIU_NO_SLTU-NEXT:    addi a1, zero, 43
-; RV32I_GLISEL_NO_SLTIU_NO_SLTU-NEXT:    bgeu a0, a1, .LBB0_2
+; RV32I_GLISEL_NO_SLTIU_NO_SLTU-NEXT:    bltu a0, a1, .LBB0_2
 ; RV32I_GLISEL_NO_SLTIU_NO_SLTU-NEXT:  # %bb.1: # %entry
-; RV32I_GLISEL_NO_SLTIU_NO_SLTU-NEXT:    addi a0, zero, 1
+; RV32I_GLISEL_NO_SLTIU_NO_SLTU-NEXT:    addi a0, zero, 0
 ; RV32I_GLISEL_NO_SLTIU_NO_SLTU-NEXT:    jalr zero, 0(ra)
 ; RV32I_GLISEL_NO_SLTIU_NO_SLTU-NEXT:  .LBB0_2: # %entry
-; RV32I_GLISEL_NO_SLTIU_NO_SLTU-NEXT:    addi a0, zero, 0
+; RV32I_GLISEL_NO_SLTIU_NO_SLTU-NEXT:    addi a0, zero, 1
 ; RV32I_GLISEL_NO_SLTIU_NO_SLTU-NEXT:    jalr zero, 0(ra)
 
 entry:
