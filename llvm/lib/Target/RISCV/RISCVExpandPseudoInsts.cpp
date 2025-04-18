@@ -451,7 +451,16 @@ public:
   bool runOnMachineFunction(MachineFunction &MF) override;
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.setPreservesCFG();
+#if 0
+    // setPreservesCFG should be called to by a pass if it does not:
+    //  1. Add or remove basic blocks from the function
+    //  2. Modify terminator instructions in any way.
+    // The expansion of some of the integer instructions _does_
+    // modify control flow so this is disabled.
+    // TODO: create a new pass for this expansion to separate
+    // that (new) code from the pre-existing pseudo-instructions.
+    // AU.setPreservesCFG();
+#endif
     MachineFunctionPass::getAnalysisUsage(AU);
   }
   StringRef getPassName() const override {
@@ -483,6 +492,8 @@ private:
                                 MachineBasicBlock::iterator &NextMBBI);
   bool expandSLTIU(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
                    MachineBasicBlock::iterator &NextMBBI);
+  bool expandSLT(MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
+                 MachineBasicBlock::iterator &NextMBBI);
   bool expandSLTU(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
                   MachineBasicBlock::iterator &NextMBBI);
   bool expandSRLI(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
@@ -491,6 +502,10 @@ private:
                  MachineBasicBlock::iterator &NextMBBI);
   bool expandSRAI(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
                   MachineBasicBlock::iterator &NextMBBI);
+
+  bool expandSetLessThan(RISCVCC::CondCode CC, MachineBasicBlock &OrigBB,
+                         MachineBasicBlock::iterator MBBI,
+                         MachineBasicBlock::iterator &NextMBBI);
 #ifndef NDEBUG
   unsigned getInstSizeInBytes(const MachineFunction &MF) const {
     unsigned Size = 0;
@@ -553,6 +568,9 @@ bool RISCVPreRAExpandPseudo::expandMI(MachineBasicBlock &MBB,
     return expandLoadTLSDescAddress(MBB, MBBI, NextMBBI);
   case RISCV::PseudoSLTIU:
     return expandSLTIU(MBB, MBBI, NextMBBI);
+  case RISCV::SLT:
+  case RISCV::PseudoSLT:
+    return expandSLT(MBB, MBBI, NextMBBI);
   case RISCV::PseudoSLTU:
     return expandSLTU(MBB, MBBI, NextMBBI);
   case RISCV::SRLI:
@@ -936,15 +954,32 @@ bool RISCVPreRAExpandPseudo::expandSRL(MachineBasicBlock &OrigBB,
   return true;
 }
 
+bool RISCVPreRAExpandPseudo::expandSLT(MachineBasicBlock &OrigBB,
+                                       MachineBasicBlock::iterator MBBI,
+                                       MachineBasicBlock::iterator &NextMBBI) {
+  if (!STI->hasVendorXKeysomNoSlt()) {
+    return false;
+  }
+  return this->expandSetLessThan(RISCVCC::COND_LT, OrigBB, MBBI, NextMBBI);
+}
 bool RISCVPreRAExpandPseudo::expandSLTU(MachineBasicBlock &OrigBB,
                                         MachineBasicBlock::iterator MBBI,
                                         MachineBasicBlock::iterator &NextMBBI) {
+  if (!STI->hasVendorXKeysomNoSltu()) {
+    return false;
+  }
+  return this->expandSetLessThan(RISCVCC::COND_LTU, OrigBB, MBBI, NextMBBI);
+}
+
+bool RISCVPreRAExpandPseudo::expandSetLessThan(
+    RISCVCC::CondCode CC, MachineBasicBlock &OrigBB,
+    MachineBasicBlock::iterator MBBI, MachineBasicBlock::iterator &NextMBBI) {
 
   // The replacement code should look like:
   //
   //  OrigBB:
   //      [... previous instrs ...]
-  //      bltu  rs1, rs2, TrueBB
+  //      BranchOpcode rs1, rs2, TrueBB
   //  FalseBB:
   //      addi  FalseReg, zero, 0
   //      jal   X0, PostBB
@@ -984,26 +1019,27 @@ bool RISCVPreRAExpandPseudo::expandSLTU(MachineBasicBlock &OrigBB,
                  std::next(MachineBasicBlock::iterator{MI}), OrigBB.end());
   PostBB->transferSuccessorsAndUpdatePHIs(&OrigBB);
 
-  BuildMI(OrigBB, OrigBB.end(), DL, TII->get(RISCV::BLTU))
-      .addReg(Rs1)
-      .addReg(Rs2)
-      .addMBB(TrueBB);
-  OrigBB.addSuccessor(TrueBB);
+  const MachineOperand Cond[] = {
+      MachineOperand::CreateImm(CC),
+      MachineOperand::CreateReg(Rs1, /*isDef=*/false),
+      MachineOperand::CreateReg(Rs2, /*isDef=*/false),
+  };
+  TII->insertBranch(OrigBB, TrueBB, FalseBB, Cond, DL);
   OrigBB.addSuccessor(FalseBB);
+  OrigBB.addSuccessor(TrueBB);
 
   Register FalseReg = MRI.createVirtualRegister(MRI.getRegClass(Rd));
   BuildMI(*FalseBB, FalseBB->end(), DL, TII->get(RISCV::ADDI), FalseReg)
       .addReg(Zero)
       .addImm(0);
-  BuildMI(*FalseBB, FalseBB->end(), DL, TII->get(RISCV::PseudoBR))
-      .addMBB(PostBB);
+  TII->insertBranch(*FalseBB, PostBB, nullptr, {}, DL);
   FalseBB->addSuccessor(PostBB);
 
   Register TrueReg = MRI.createVirtualRegister(MRI.getRegClass(Rd));
   BuildMI(*TrueBB, TrueBB->end(), DL, TII->get(RISCV::ADDI), TrueReg)
       .addReg(Zero)
       .addImm(1);
-  // TrueBB falls through.
+  TII->insertBranch(*TrueBB, PostBB, nullptr, {}, DL);
   TrueBB->addSuccessor(PostBB);
 
   // A phi node to def the final result.
@@ -1014,8 +1050,13 @@ bool RISCVPreRAExpandPseudo::expandSLTU(MachineBasicBlock &OrigBB,
       .addMBB(TrueBB);
 
   NextMBBI = OrigBB.end();
-  MI.eraseFromParent();
 
+  // Make sure live-ins are correctly attached to the new basic blocks.
+  LivePhysRegs LiveRegs;
+  computeAndAddLiveIns(LiveRegs, *FalseBB);
+  computeAndAddLiveIns(LiveRegs, *TrueBB);
+
+  MI.eraseFromParent();
   return true;
 }
 

@@ -799,8 +799,11 @@ def SUB  : ALU_rr<0b0100000, 0b000, "sub">,
 def SLL  : ALU_rr<0b0000000, 0b001, "sll">,
            Sched<[WriteShiftReg, ReadShiftReg, ReadShiftReg]>;
 let IsSignExtendingOpW = 1 in {
+// *PBH*: Added HasVendorXKeysomSlt predicate
+let Predicates = [HasVendorXKeysomSlt] in
 def SLT  : ALU_rr<0b0000000, 0b010, "slt">,
            Sched<[WriteIALU, ReadIALU, ReadIALU]>;
+// *PBH*: Added HasVendorXKeysomSltu predicate
 let Predicates = [HasVendorXKeysomSltu] in
 def SLTU : ALU_rr<0b0000000, 0b011, "sltu">,
            Sched<[WriteIALU, ReadIALU, ReadIALU]>;
@@ -1050,11 +1053,17 @@ def : InstAlias<"seqz $rd, $rs", (SLTIU GPR:$rd, GPR:$rs,       1)>;
 // *PBH*: Added HasVendorXKeysomSltu predicate
 let Predicates = [HasVendorXKeysomSltu] in
 def : InstAlias<"snez $rd, $rs", (SLTU  GPR:$rd,      X0, GPR:$rs)>;
+// *PBH*: Added HasVendorXKeysomSlt predicate
+let Predicates = [HasVendorXKeysomSlt] in
 def : InstAlias<"sltz $rd, $rs", (SLT   GPR:$rd, GPR:$rs,      X0)>;
+// *PBH*: Added HasVendorXKeysomSlt predicate
+let Predicates = [HasVendorXKeysomSlt] in
 def : InstAlias<"sgtz $rd, $rs", (SLT   GPR:$rd,      X0, GPR:$rs)>;
 
 // sgt/sgtu are recognised by the GNU assembler but the canonical slt/sltu
 // form will always be printed. Therefore, set a zero weight.
+// *PBH*: Added HasVendorXKeysomSlt predicate
+let Predicates = [HasVendorXKeysomSlt] in
 def : InstAlias<"sgt $rd, $rs, $rt", (SLT GPR:$rd, GPR:$rt, GPR:$rs), 0>;
 // *PBH*: Added HasVendorXKeysomSltu predicate
 let Predicates = [HasVendorXKeysomSltu] in
@@ -1648,14 +1657,21 @@ def : Pat<(riscv_add_lo GPR:$src, tglobaltlsaddr:$lo),
 
 /// Setcc
 
-// *PBH*: Begin. Added PseudoSLTU and PseudoSLTIU
+// *PBH*: Begin. Added PseudoSLT, PseudoSLTU, and PseudoSLTIU
+def PseudoSLT : Pseudo<(outs GPR:$dst), (ins GPR:$rs1, GPR:$rs2), []>,
+                Sched<[WriteIALU, ReadIALU]>;
 def PseudoSLTU : Pseudo<(outs GPR:$dst), (ins GPR:$rs1, GPR:$rs2), []>,
                  Sched<[WriteIALU, ReadIALU]>;
 def PseudoSLTIU : Pseudo<(outs GPR:$dst), (ins GPR:$rs1, simm12:$imm12), []>,
                   Sched<[WriteIALU, ReadIALU]>;
 // *PBH*: End added
 
+// *PBH*: Added HasVendorXKeysomSlt predicate and PseudoSLT
+let Predicates = [HasVendorXKeysomSlt] in
 def : PatGprGpr<setlt, SLT>;
+def : Pat<(XLenVT(setlt(XLenVT GPR:$rs1), (XLenVT GPR:$rs2))),
+          (PseudoSLT GPR:$rs1, GPR:$rs2)>;
+
 // *PBH*: Added HasVendorXKeysomSlti predicate
 let Predicates = [HasVendorXKeysomSlti] in
 def : PatGprSimm12<setlt, SLTI>;
