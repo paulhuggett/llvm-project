@@ -516,7 +516,6 @@ private:
   }
 #endif
 };
-
 char RISCVPreRAExpandPseudo::ID = 0;
 
 bool RISCVPreRAExpandPseudo::runOnMachineFunction(MachineFunction &MF) {
@@ -590,6 +589,21 @@ bool RISCVPreRAExpandPseudo::expandMI(MachineBasicBlock &MBB,
 bool RISCVPreRAExpandPseudo::expandSLTIU(
     MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
     MachineBasicBlock::iterator &NextMBBI) {
+
+  if (!STI->hasVendorXKeysomNoSltiu()) {
+    if (MBBI->getOpcode() == RISCV::PseudoSLTIU) {
+      // MachineInstr &MI = *MBBI;
+      //  Simply swap PseudoSLTU for real SLTU.
+      BuildMI(OrigBB, MBBI, MBBI->getDebugLoc(), TII->get(RISCV::SLTIU),
+              MBBI->getOperand(0).getReg())
+          .addReg(MBBI->getOperand(1).getReg())
+          .addReg(MBBI->getOperand(2).getReg());
+      MBBI->eraseFromParent();
+      return true;
+    }
+    return false;
+  }
+
   static constexpr auto Zero = RISCV::X0;
   MachineFunction *const MF = OrigBB.getParent();
   assert(MF->getSubtarget<RISCVSubtarget>().hasVendorXKeysomNoSltiu() &&
@@ -958,6 +972,16 @@ bool RISCVPreRAExpandPseudo::expandSLT(MachineBasicBlock &OrigBB,
                                        MachineBasicBlock::iterator MBBI,
                                        MachineBasicBlock::iterator &NextMBBI) {
   if (!STI->hasVendorXKeysomNoSlt()) {
+    if (MBBI->getOpcode() == RISCV::PseudoSLT) {
+      // MachineInstr &MI = *MBBI;
+      //  Simply swap PseudoSLTU for real SLTU.
+      BuildMI(OrigBB, MBBI, MBBI->getDebugLoc(), TII->get(RISCV::SLT),
+              MBBI->getOperand(0).getReg())
+          .addReg(MBBI->getOperand(1).getReg())
+          .addReg(MBBI->getOperand(2).getReg());
+      MBBI->eraseFromParent();
+      return true;
+    }
     return false;
   }
   return this->expandSetLessThan(RISCVCC::COND_LT, OrigBB, MBBI, NextMBBI);
@@ -966,6 +990,16 @@ bool RISCVPreRAExpandPseudo::expandSLTU(MachineBasicBlock &OrigBB,
                                         MachineBasicBlock::iterator MBBI,
                                         MachineBasicBlock::iterator &NextMBBI) {
   if (!STI->hasVendorXKeysomNoSltu()) {
+    if (MBBI->getOpcode() == RISCV::PseudoSLTU) {
+      // MachineInstr &MI = *MBBI;
+      //  Simply swap PseudoSLTU for real SLTU.
+      BuildMI(OrigBB, MBBI, MBBI->getDebugLoc(), TII->get(RISCV::SLTU),
+              MBBI->getOperand(0).getReg())
+          .addReg(MBBI->getOperand(1).getReg())
+          .addReg(MBBI->getOperand(2).getReg());
+      MBBI->eraseFromParent();
+      return true;
+    }
     return false;
   }
   return this->expandSetLessThan(RISCVCC::COND_LTU, OrigBB, MBBI, NextMBBI);
@@ -993,8 +1027,8 @@ bool RISCVPreRAExpandPseudo::expandSetLessThan(
   static constexpr auto Zero = RISCV::X0;
   MachineFunction *const MF = OrigBB.getParent();
   MachineInstr &MI = *MBBI;
-  assert(MI.getNumOperands() == 3 && "Expected PseudoSLTU to have 3 operands "
-                                     "(matching the SLTU instruction)");
+  assert(MI.getNumOperands() == 3 && "Expected PseudoSLT[U] to have 3 operands "
+                                     "(matching the SLT[U] instruction)");
   DebugLoc DL = MI.getDebugLoc();
 
   Register Rd = MI.getOperand(0).getReg();
