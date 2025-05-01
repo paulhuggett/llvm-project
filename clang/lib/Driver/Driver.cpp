@@ -4295,9 +4295,14 @@ void Driver::handleArguments(Compilation &C, DerivedArgList &Args,
       Args.AddFlagArg(nullptr,
                       getOpts().getOption(options::OPT_frtlib_add_rpath));
     }
+    // *PBH*: Disabled this check to allow the -emit-llvm switch to be used at
+    // link time. This is to work around the picolibc meson build system using
+    // the switch at configure time.
+#if 0
     // Emitting LLVM while linking disabled except in HIPAMD Toolchain
     if (Args.hasArg(options::OPT_emit_llvm) && !Args.hasArg(options::OPT_hip_link))
       Diag(clang::diag::err_drv_emit_llvm_link);
+#endif
     if (C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() &&
         LTOMode != LTOK_None &&
         !Args.getLastArgValue(options::OPT_fuse_ld_EQ)
