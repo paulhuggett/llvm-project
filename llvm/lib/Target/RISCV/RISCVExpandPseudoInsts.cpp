@@ -593,7 +593,7 @@ bool RISCVPreRAExpandPseudo::expandSLTIU(
   if (!STI->hasVendorXKeysomNoSltiu()) {
     if (MBBI->getOpcode() == RISCV::PseudoSLTIU) {
       // MachineInstr &MI = *MBBI;
-      //  Simply swap PseudoSLTU for real SLTU.
+      //  Simply swap PseudoSLTIU for real SLTIU.
       BuildMI(OrigBB, MBBI, MBBI->getDebugLoc(), TII->get(RISCV::SLTIU),
               MBBI->getOperand(0).getReg())
           .addReg(MBBI->getOperand(1).getReg())
@@ -974,7 +974,7 @@ bool RISCVPreRAExpandPseudo::expandSLT(MachineBasicBlock &OrigBB,
   if (!STI->hasVendorXKeysomNoSlt()) {
     if (MBBI->getOpcode() == RISCV::PseudoSLT) {
       // MachineInstr &MI = *MBBI;
-      //  Simply swap PseudoSLTU for real SLTU.
+      //  Simply swap PseudoSLT for real SLT.
       BuildMI(OrigBB, MBBI, MBBI->getDebugLoc(), TII->get(RISCV::SLT),
               MBBI->getOperand(0).getReg())
           .addReg(MBBI->getOperand(1).getReg())
