@@ -1301,8 +1301,13 @@ defm Srai : KeysomPredicates<FeatureVendorXKeysomNoSrai>;
 def FeatureVendorXKeysomNoSrl : KeysomExtension<"Srl">;
 defm Srl : KeysomPredicates<FeatureVendorXKeysomNoSrl>;
 
+def FeatureVendorXKeysomNoOr : KeysomExtension<"Or">;
+defm Or : KeysomPredicates<FeatureVendorXKeysomNoOr>;
+
+// *PBH*: TODO remove the nolui control.
 def FeatureVendorXKeysomNoLui : KeysomExtension<"Lui">;
 defm Lui : KeysomPredicates<FeatureVendorXKeysomNoLui>;
+
 
 // F extension
 def FeatureVendorXKeysomNoFmadds : KeysomExtension<"Fmadds">;

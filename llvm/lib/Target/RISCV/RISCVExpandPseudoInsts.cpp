@@ -502,6 +502,8 @@ private:
                  MachineBasicBlock::iterator &NextMBBI);
   bool expandSRAI(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
                   MachineBasicBlock::iterator &NextMBBI);
+  bool expandOR(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
+                  MachineBasicBlock::iterator &NextMBBI);
 
   bool expandSetLessThan(RISCVCC::CondCode CC, MachineBasicBlock &OrigBB,
                          MachineBasicBlock::iterator MBBI,
@@ -570,6 +572,8 @@ bool RISCVPreRAExpandPseudo::expandMI(MachineBasicBlock &MBB,
   case RISCV::SLT:
   case RISCV::PseudoSLT:
     return expandSLT(MBB, MBBI, NextMBBI);
+  case RISCV::OR:
+    return expandOR(MBB, MBBI, NextMBBI);
   case RISCV::PseudoSLTU:
     return expandSLTU(MBB, MBBI, NextMBBI);
   case RISCV::SRLI:
@@ -964,6 +968,29 @@ bool RISCVPreRAExpandPseudo::expandSRL(MachineBasicBlock &OrigBB,
 
   Helper.rvAnd(Rd, ShiftA, SextMask);
 
+  MI.eraseFromParent();
+  return true;
+}
+
+bool RISCVPreRAExpandPseudo::expandOR(MachineBasicBlock &OrigBB,
+                                       MachineBasicBlock::iterator MBBI,
+                                      MachineBasicBlock::iterator &NextMBBI) {
+  if (!STI->hasVendorXKeysomNoOr()) {
+    return false;
+  }
+
+  MachineInstr &MI = *MBBI;
+  assert(MI.getNumOperands() == 3 && "Expected OR to have 3 operands");
+  Register Rd = MI.getOperand(0).getReg();
+  Register Rs1 = MI.getOperand(1).getReg();
+  Register Rs2 = MI.getOperand(2).getReg();
+
+  MachineRegisterInfo &MRI = OrigBB.getParent()->getRegInfo();
+  InstructionHelper Helper{MRI, MRI.getRegClass(Rd), OrigBB, MBBI, MI.getDebugLoc(), this->STI, this->TII};
+  Register N1 = Helper.rvXori(Rs1, -1);
+  Register N2 = Helper.rvXori(Rs2, -1);
+  Register A = Helper.rvAnd(N1, N2);
+  Helper.rvXori(Rd, A, -1);
   MI.eraseFromParent();
   return true;
 }
