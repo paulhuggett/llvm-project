@@ -260,6 +260,14 @@ void RISCVTargetInfo::getTargetDefines(const LangOptions &Opts,
                        "transformed to other scheme");
     }
   }
+
+  // *PBH*: Add predefined macros to allow code to find out any disabled instructions.
+  for (auto const & KVP: ISAInfo->getExtensions()) {
+    const std::string & Name = KVP.first;
+    if (Name.rfind("xkeysomno", 0) == 0)
+      Builder.defineMacro(Twine("__riscv_", Name));
+  }
+  // *PBH*: End
 }
 
 static constexpr int NumRVVBuiltins =
