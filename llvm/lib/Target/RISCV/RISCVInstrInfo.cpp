@@ -1349,7 +1349,26 @@ bool RISCVInstrInfo::reverseBranchCondition(
     SmallVectorImpl<MachineOperand> &Cond) const {
   assert((Cond.size() == 3) && "Invalid branch condition!");
   auto CC = static_cast<RISCVCC::CondCode>(Cond[0].getImm());
-  Cond[0].setImm(getOppositeBranchCondition(CC));
+
+  auto const OppositeCC = getOppositeBranchCondition(CC);
+  switch (OppositeCC) {
+  case RISCVCC::COND_EQ:
+    if (STI.hasVendorXKeysomNoBeq()) {
+      return true;
+    }
+    break;
+  case RISCVCC::COND_NE:
+  case RISCVCC::COND_LT:
+  case RISCVCC::COND_GE:
+  case RISCVCC::COND_LTU:
+  case RISCVCC::COND_GEU:
+  case RISCVCC::COND_CV_BEQIMM:
+  case RISCVCC::COND_CV_BNEIMM:
+    break;
+  default:
+    llvm_unreachable("Unrecognized conditional branch");
+  }
+  Cond[0].setImm(OppositeCC);
   return false;
 }
 

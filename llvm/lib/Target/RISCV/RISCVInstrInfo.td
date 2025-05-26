@@ -1071,6 +1071,7 @@ def : InstAlias<"sgt $rd, $rs, $rt", (SLT GPR:$rd, GPR:$rt, GPR:$rs), 0>;
 let Predicates = [HasVendorXKeysomSltu] in
 def : InstAlias<"sgtu $rd, $rs, $rt", (SLTU GPR:$rd, GPR:$rt, GPR:$rs), 0>;
 
+let Predicates = [HasVendorXKeysomBeq] in
 def : InstAlias<"beqz $rs, $offset",
                 (BEQ GPR:$rs,      X0, bare_simm13_lsb0:$offset)>;
 def : InstAlias<"bnez $rs, $offset",

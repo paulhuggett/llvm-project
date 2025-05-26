@@ -504,6 +504,8 @@ private:
                   MachineBasicBlock::iterator &NextMBBI);
   bool expandOR(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
                   MachineBasicBlock::iterator &NextMBBI);
+  bool expandBEQ(MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
+                 MachineBasicBlock::iterator &NextMBBI);
 
   bool expandSetLessThan(RISCVCC::CondCode CC, MachineBasicBlock &OrigBB,
                          MachineBasicBlock::iterator MBBI,
@@ -574,6 +576,8 @@ bool RISCVPreRAExpandPseudo::expandMI(MachineBasicBlock &MBB,
     return expandSLT(MBB, MBBI, NextMBBI);
   case RISCV::OR:
     return expandOR(MBB, MBBI, NextMBBI);
+  case RISCV::BEQ:
+    return expandBEQ(MBB, MBBI, NextMBBI);
   case RISCV::PseudoSLTU:
     return expandSLTU(MBB, MBBI, NextMBBI);
   case RISCV::SRLI:
@@ -927,17 +931,14 @@ bool RISCVPreRAExpandPseudo::expandSRL(MachineBasicBlock &OrigBB,
   static constexpr auto Zero = RISCV::X0;
   MachineInstr &MI = *MBBI;
   assert(MI.getNumOperands() == 3 && "Expected SRL to have 3 operands");
-  DebugLoc DL = MI.getDebugLoc();
-
   Register Rd = MI.getOperand(0).getReg();
   Register Rs1 = MI.getOperand(1).getReg();
   Register Rs2 = MI.getOperand(2).getReg();
 
   MachineRegisterInfo &MRI = MF->getRegInfo();
-  const TargetRegisterClass *const RegClass = MRI.getRegClass(Rd);
-
-  InstructionHelper Helper{MRI, RegClass,  OrigBB,   MBBI,
-                           DL,  this->STI, this->TII};
+  InstructionHelper Helper{MRI,      MRI.getRegClass(Rd), OrigBB,
+                           MBBI,     MI.getDebugLoc(),    this->STI,
+                           this->TII};
 
   // Use sra and a mask. Starting with the instruction:
   //
@@ -1118,6 +1119,121 @@ bool RISCVPreRAExpandPseudo::expandSetLessThan(
   computeAndAddLiveIns(LiveRegs, *TrueBB);
 
   MI.eraseFromParent();
+  return true;
+}
+
+// Look in the Target BB for a PHI node that references OrigBB. If found, we
+// change it to a join from NewBB.
+static void fixTrueBBPhi(MachineFunction &MF, MachineBasicBlock *const TargetBB,
+                         MachineBasicBlock *const OrigBB,
+                         MachineBasicBlock *const NewBB) {
+  assert(TargetBB != nullptr && OrigBB != nullptr && NewBB != nullptr);
+  for (MachineInstr &Phi : *TargetBB) {
+    if (!Phi.isPHI())
+      return;
+
+    // In a PHI node, operand 0 is the destination register. Remaining
+    // operands are pairs of (register, predecessor block) as incoming edges.
+    for (unsigned OpCtr = 1, NumOperands = Phi.getNumOperands();
+         OpCtr < NumOperands; OpCtr += 2) {
+      auto &BBOperand = Phi.getOperand(OpCtr + 1);
+      if (BBOperand.getMBB() == OrigBB) {
+        BBOperand.setMBB(NewBB);
+        break;
+      }
+    }
+  }
+}
+
+// Look in the Target BB for a PHI node that references OrigBB. If found, we add
+// an additional join from NewBB.
+static void fixFalseBBPhi(MachineFunction &MF,
+                          MachineBasicBlock *const TargetBB,
+                          MachineBasicBlock *const OrigBB,
+                          MachineBasicBlock *const NewBB) {
+  assert(TargetBB != nullptr && OrigBB != nullptr && NewBB != nullptr);
+  for (MachineInstr &Phi : *TargetBB) {
+    if (!Phi.isPHI())
+      return;
+
+    for (unsigned OpCtr = 1, NumOperands = Phi.getNumOperands();
+         OpCtr < NumOperands; OpCtr += 2) {
+      auto &BBOperand = Phi.getOperand(OpCtr + 1);
+      if (BBOperand.getMBB() == OrigBB) {
+        // Create an operand which *also* refers to NewBB .
+        Register Reg = Phi.getOperand(OpCtr).getReg();
+        Phi.addOperand(MF, MachineOperand::CreateReg(Reg, /*isDef=*/false));
+        Phi.addOperand(MF, MachineOperand::CreateMBB(NewBB));
+        break;
+      }
+    }
+  }
+}
+
+bool RISCVPreRAExpandPseudo::expandBEQ(MachineBasicBlock &OrigBB,
+                                       MachineBasicBlock::iterator MBBI,
+                                       MachineBasicBlock::iterator &NextMBBI) {
+  if (!STI->hasVendorXKeysomNoBeq()) {
+    return false;
+  }
+  // Original:
+  //
+  //   beq rs1, rs2, offset
+  //
+  // The replacement code should look like:
+  //
+  //      [... previous instrs ...]
+  //      blt rs1, rs2, Neq
+  //      blt rs2, rs1, Neq
+  //      jal X0, offset
+  //  Neq:
+  //      [... later instrs ...]
+
+  MachineFunction *const MF = OrigBB.getParent();
+  MachineInstr &MI = *MBBI;
+  assert(MI.getNumOperands() == 3 && "Expected BEQ to have 3 operands");
+
+  MachineBasicBlock *TBB = nullptr;
+  MachineBasicBlock *FBB = nullptr;
+  SmallVector<MachineOperand, 3> Cond;
+  if (!TII->analyzeBranch(OrigBB, /*out*/ TBB, /*out*/ FBB, /*out*/ Cond,
+                          /*AllowModify=*/false)) {
+    if (FBB == nullptr) {
+      return false;
+    }
+
+    assert(Cond.size() == 3 && "Invalid branch condition!");
+    assert(Cond[0].getImm() == RISCVCC::CondCode::COND_EQ);
+    const std::array IsKilled{Cond[1].isKill(), Cond[2].isKill()};
+    Cond[1].setIsKill(false);
+    Cond[2].setIsKill(false);
+
+    MachineBasicBlock *const GtBB =
+        MF->CreateMachineBasicBlock(OrigBB.getBasicBlock());
+    MF->insert(std::next(OrigBB.getIterator()), GtBB);
+
+    TII->removeBranch(OrigBB);
+    OrigBB.removeSuccessor(TBB);
+
+    Cond[0].setImm(RISCVCC::CondCode::COND_LT);
+    TII->insertBranch(OrigBB, /*true bb=*/FBB, /*false bb=*/GtBB, Cond,
+                      MI.getDebugLoc());
+    OrigBB.addSuccessor(GtBB);
+
+    Cond[0].setImm(RISCVCC::CondCode::COND_LT);
+    Cond[1].setIsKill(IsKilled[0]);
+    Cond[2].setIsKill(IsKilled[1]);
+    std::swap(Cond[1], Cond[2]);
+    TII->insertBranch(*GtBB, /*true bb=*/FBB, /*false bb=*/TBB, Cond,
+                      MI.getDebugLoc());
+    GtBB->addSuccessor(FBB);
+    GtBB->addSuccessor(TBB);
+
+    fixTrueBBPhi(*MF, TBB, &OrigBB, GtBB);
+    fixFalseBBPhi(*MF, FBB, &OrigBB, GtBB);
+  }
+
+  NextMBBI = OrigBB.end();
   return true;
 }
 
