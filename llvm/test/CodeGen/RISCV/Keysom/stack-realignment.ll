@@ -4135,7 +4135,7 @@ define void @caller4096() {
 ; RV64I-ANDI-NEXT:    addi s0, sp, 2032
 ; RV64I-ANDI-NEXT:    .cfi_def_cfa s0, 0
 ; RV64I-ANDI-NEXT:    lui a0, 2
-; RV64I-ANDI-NEXT:    addiw a0, a0, -2032
+; RV64I-ANDI-NEXT:    addi a0, a0, -2032
 ; RV64I-ANDI-NEXT:    sub sp, sp, a0
 ; RV64I-ANDI-NEXT:    srli a0, sp, 12
 ; RV64I-ANDI-NEXT:    slli sp, a0, 12
@@ -4163,7 +4163,7 @@ define void @caller4096() {
 ; RV64I-LP64E-ANDI-NEXT:    addi s0, sp, 2040
 ; RV64I-LP64E-ANDI-NEXT:    .cfi_def_cfa s0, 0
 ; RV64I-LP64E-ANDI-NEXT:    lui a0, 2
-; RV64I-LP64E-ANDI-NEXT:    addiw a0, a0, -2040
+; RV64I-LP64E-ANDI-NEXT:    addi a0, a0, -2040
 ; RV64I-LP64E-ANDI-NEXT:    sub sp, sp, a0
 ; RV64I-LP64E-ANDI-NEXT:    srli a0, sp, 12
 ; RV64I-LP64E-ANDI-NEXT:    slli sp, a0, 12
@@ -4249,7 +4249,7 @@ define void @caller4096() {
 ; RV64I-SLLI-NEXT:    addi s0, sp, 2032
 ; RV64I-SLLI-NEXT:    .cfi_def_cfa s0, 0
 ; RV64I-SLLI-NEXT:    lui a0, 2
-; RV64I-SLLI-NEXT:    addiw a0, a0, -2032
+; RV64I-SLLI-NEXT:    addi a0, a0, -2032
 ; RV64I-SLLI-NEXT:    sub sp, sp, a0
 ; RV64I-SLLI-NEXT:    srli a0, sp, 12
 ; RV64I-SLLI-NEXT:    addi a1, zero, 12
@@ -4278,7 +4278,7 @@ define void @caller4096() {
 ; RV64I-LP64E-SLLI-NEXT:    addi s0, sp, 2040
 ; RV64I-LP64E-SLLI-NEXT:    .cfi_def_cfa s0, 0
 ; RV64I-LP64E-SLLI-NEXT:    lui a0, 2
-; RV64I-LP64E-SLLI-NEXT:    addiw a0, a0, -2040
+; RV64I-LP64E-SLLI-NEXT:    addi a0, a0, -2040
 ; RV64I-LP64E-SLLI-NEXT:    sub sp, sp, a0
 ; RV64I-LP64E-SLLI-NEXT:    srli a0, sp, 12
 ; RV64I-LP64E-SLLI-NEXT:    addi a1, zero, 12
@@ -4365,7 +4365,7 @@ define void @caller4096() {
 ; RV64I-ANDI-SLLI-NEXT:    addi s0, sp, 2032
 ; RV64I-ANDI-SLLI-NEXT:    .cfi_def_cfa s0, 0
 ; RV64I-ANDI-SLLI-NEXT:    lui a0, 2
-; RV64I-ANDI-SLLI-NEXT:    addiw a0, a0, -2032
+; RV64I-ANDI-SLLI-NEXT:    addi a0, a0, -2032
 ; RV64I-ANDI-SLLI-NEXT:    sub sp, sp, a0
 ; RV64I-ANDI-SLLI-NEXT:    srli a0, sp, 12
 ; RV64I-ANDI-SLLI-NEXT:    addi a1, zero, 12
@@ -4394,7 +4394,7 @@ define void @caller4096() {
 ; RV64I-LP64E-ANDI-SLLI-NEXT:    addi s0, sp, 2040
 ; RV64I-LP64E-ANDI-SLLI-NEXT:    .cfi_def_cfa s0, 0
 ; RV64I-LP64E-ANDI-SLLI-NEXT:    lui a0, 2
-; RV64I-LP64E-ANDI-SLLI-NEXT:    addiw a0, a0, -2040
+; RV64I-LP64E-ANDI-SLLI-NEXT:    addi a0, a0, -2040
 ; RV64I-LP64E-ANDI-SLLI-NEXT:    sub sp, sp, a0
 ; RV64I-LP64E-ANDI-SLLI-NEXT:    srli a0, sp, 12
 ; RV64I-LP64E-ANDI-SLLI-NEXT:    addi a1, zero, 12
