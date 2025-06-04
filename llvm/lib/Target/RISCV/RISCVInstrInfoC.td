@@ -1116,15 +1116,15 @@ def : CompressPat<(BEQ X0, GPRC:$rs1, bare_simm9_lsb0:$imm),
                   (C_BEQZ GPRC:$rs1, bare_simm9_lsb0:$imm)>;
 }
 // *PBH*: End added HasVendorXKeysomCbeqz predicate
-// *PBH*: Begin added HasVendorXKeysomCbnez predicate
-let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCbnez] in {
+// *PBH*: Begin added HasVendorXKeysomCbnez and Bne predicates
+let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCbnez, HasVendorXKeysomBne] in {
 def : CompressPat<(BNE GPRC:$rs1, X0, bare_simm9_lsb0:$imm),
                   (C_BNEZ GPRC:$rs1, bare_simm9_lsb0:$imm)>;
 let isCompressOnly = true in
 def : CompressPat<(BNE X0, GPRC:$rs1, bare_simm9_lsb0:$imm),
                   (C_BNEZ GPRC:$rs1, bare_simm9_lsb0:$imm)>;
 } // HasStdExtCOrZca, HasVendorXKeysomCbnez
-// *PBH*: End added HasVendorXKeysomCbnez predicate
+// *PBH*: End added HasVendorXKeysomCbnez and Bne predicates
 } // Predicates = [HasStdExtCOrZca]
 
 // Quadrant 2

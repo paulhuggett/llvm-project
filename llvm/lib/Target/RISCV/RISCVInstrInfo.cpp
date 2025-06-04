@@ -1353,11 +1353,19 @@ bool RISCVInstrInfo::reverseBranchCondition(
   auto const OppositeCC = getOppositeBranchCondition(CC);
   switch (OppositeCC) {
   case RISCVCC::COND_EQ:
+    // *PBH*: Begin. Don't use beq if it is not available.
     if (STI.hasVendorXKeysomNoBeq()) {
       return true;
     }
     break;
+    // *PBH*: End.
   case RISCVCC::COND_NE:
+    // *PBH*: Begin. Don't use bne if it is not available.
+    if (STI.hasVendorXKeysomNoBne()) {
+      return true;
+    }
+    break;
+    // *PBH*: End.
   case RISCVCC::COND_LT:
   case RISCVCC::COND_GE:
   case RISCVCC::COND_LTU:

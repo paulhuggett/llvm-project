@@ -1307,6 +1307,9 @@ defm Or : KeysomPredicates<FeatureVendorXKeysomNoOr>;
 def FeatureVendorXKeysomNoBeq : KeysomExtension<"Beq">;
 defm Beq : KeysomPredicates<FeatureVendorXKeysomNoBeq>;
 
+def FeatureVendorXKeysomNoBne : KeysomExtension<"Bne">;
+defm Bne : KeysomPredicates<FeatureVendorXKeysomNoBne>;
+
 // *PBH*: TODO remove the nolui control.
 def FeatureVendorXKeysomNoLui : KeysomExtension<"Lui">;
 defm Lui : KeysomPredicates<FeatureVendorXKeysomNoLui>;
