@@ -733,9 +733,12 @@ def JALR : RVInstI<0b000, OPC_JALR, (outs GPR:$rd),
            Sched<[WriteJalr, ReadJalr]>;
 } // hasSideEffects = 0, mayLoad = 0, mayStore = 0
 
+let Predicates = [HasVendorXKeysomBeq] in
 def BEQ  : BranchCC_rri<0b000, "beq">;
+let Predicates = [HasVendorXKeysomBne] in
 def BNE  : BranchCC_rri<0b001, "bne">;
 def BLT  : BranchCC_rri<0b100, "blt">;
+let Predicates = [HasVendorXKeysomBge] in
 def BGE  : BranchCC_rri<0b101, "bge">;
 def BLTU : BranchCC_rri<0b110, "bltu">;
 def BGEU : BranchCC_rri<0b111, "bgeu">;
@@ -1078,8 +1081,12 @@ def : InstAlias<"beqz $rs, $offset",
 let Predicates = [HasVendorXKeysomBne] in
 def : InstAlias<"bnez $rs, $offset",
                 (BNE GPR:$rs,      X0, bare_simm13_lsb0:$offset)>;
+// *PBH*: Added HasVendorXKeysomBge predicate
+let Predicates = [HasVendorXKeysomBge] in
 def : InstAlias<"blez $rs, $offset",
                 (BGE      X0, GPR:$rs, bare_simm13_lsb0:$offset)>;
+// *PBH*: Added HasVendorXKeysomBge predicate
+let Predicates = [HasVendorXKeysomBge] in
 def : InstAlias<"bgez $rs, $offset",
                 (BGE GPR:$rs,      X0, bare_simm13_lsb0:$offset)>;
 def : InstAlias<"bltz $rs, $offset",
@@ -1093,6 +1100,8 @@ def : InstAlias<"bgtz $rs, $offset",
 // objdump). Match this behaviour by setting a zero weight.
 def : InstAlias<"bgt $rs, $rt, $offset",
                 (BLT  GPR:$rt, GPR:$rs, bare_simm13_lsb0:$offset), 0>;
+// *PBH*: Added HasVendorXKeysomBge predicate
+let Predicates = [HasVendorXKeysomBge] in
 def : InstAlias<"ble $rs, $rt, $offset",
                 (BGE  GPR:$rt, GPR:$rs, bare_simm13_lsb0:$offset), 0>;
 def : InstAlias<"bgtu $rs, $rt, $offset",

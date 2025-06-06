@@ -17,6 +17,7 @@
 #include "RISCVTargetMachine.h"
 
 #include "llvm/CodeGen/LivePhysRegs.h"
+#include "llvm/CodeGen/MachineBranchProbabilityInfo.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/MC/MCContext.h"
@@ -461,6 +462,7 @@ public:
     // that (new) code from the pre-existing pseudo-instructions.
     // AU.setPreservesCFG();
 #endif
+    AU.addRequired<MachineBranchProbabilityInfoWrapperPass>();
     MachineFunctionPass::getAnalysisUsage(AU);
   }
   StringRef getPassName() const override {
@@ -507,6 +509,8 @@ private:
   bool expandBEQ(MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
                  MachineBasicBlock::iterator &NextMBBI);
   bool expandBNE(MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
+                 MachineBasicBlock::iterator &NextMBBI);
+  bool expandBGE(MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
                  MachineBasicBlock::iterator &NextMBBI);
 
   bool expandSetLessThan(RISCVCC::CondCode CC, MachineBasicBlock &OrigBB,
@@ -582,6 +586,8 @@ bool RISCVPreRAExpandPseudo::expandMI(MachineBasicBlock &MBB,
     return expandBEQ(MBB, MBBI, NextMBBI);
   case RISCV::BNE:
     return expandBNE(MBB, MBBI, NextMBBI);
+  case RISCV::BGE:
+    return expandBGE(MBB, MBBI, NextMBBI);
   case RISCV::PseudoSLTU:
     return expandSLTU(MBB, MBBI, NextMBBI);
   case RISCV::SRLI:
@@ -1196,14 +1202,25 @@ bool RISCVPreRAExpandPseudo::expandBEQ(MachineBasicBlock &OrigBB,
   MachineInstr &MI = *MBBI;
   assert(MI.getNumOperands() == 3 && "Expected BEQ to have 3 operands");
 
-  MachineBasicBlock *TBB = nullptr;
-  MachineBasicBlock *FBB = nullptr;
+  MachineBasicBlock *TrueSucc = nullptr;
+  MachineBasicBlock *FalseSucc = nullptr;
   SmallVector<MachineOperand, 3> Cond;
-  if (!TII->analyzeBranch(OrigBB, /*out*/ TBB, /*out*/ FBB, /*out*/ Cond,
+  if (!TII->analyzeBranch(OrigBB, /*out*/ TrueSucc, /*out*/ FalseSucc,
+                          /*out*/ Cond,
                           /*AllowModify=*/false)) {
-    if (FBB == nullptr) {
-      return false;
+    // If there's no false branch, use the layout successor instead.
+    if (FalseSucc == nullptr) {
+      if (auto Next = std::next(OrigBB.getIterator());
+          Next != OrigBB.getParent()->end()) {
+        FalseSucc = &*Next;
+      }
     }
+    assert(FalseSucc != nullptr);
+
+    MachineBranchProbabilityInfo &MBPI =
+        getAnalysis<MachineBranchProbabilityInfoWrapperPass>().getMBPI();
+    auto TrueProb = MBPI.getEdgeProbability(&OrigBB, TrueSucc);
+    auto FalseProb = MBPI.getEdgeProbability(&OrigBB, FalseSucc);
 
     assert(Cond.size() == 3 && "Invalid branch condition!");
     assert(Cond[0].getImm() == RISCVCC::CondCode::COND_EQ);
@@ -1216,24 +1233,26 @@ bool RISCVPreRAExpandPseudo::expandBEQ(MachineBasicBlock &OrigBB,
     MF->insert(std::next(OrigBB.getIterator()), GtBB);
 
     TII->removeBranch(OrigBB);
-    OrigBB.removeSuccessor(TBB);
 
     Cond[0].setImm(RISCVCC::CondCode::COND_LT);
-    TII->insertBranch(OrigBB, /*true bb=*/FBB, /*false bb=*/GtBB, Cond,
+    TII->insertBranch(OrigBB, /*true bb=*/FalseSucc, /*false bb=*/GtBB, Cond,
                       MI.getDebugLoc());
-    OrigBB.addSuccessor(GtBB);
+
+    OrigBB.removeSuccessor(TrueSucc);
+    OrigBB.addSuccessor(GtBB, TrueProb);
 
     Cond[0].setImm(RISCVCC::CondCode::COND_LT);
     Cond[1].setIsKill(IsKilled[0]);
     Cond[2].setIsKill(IsKilled[1]);
     std::swap(Cond[1], Cond[2]);
-    TII->insertBranch(*GtBB, /*true bb=*/FBB, /*false bb=*/TBB, Cond,
+    TII->insertBranch(*GtBB, /*true bb=*/FalseSucc, /*false bb=*/TrueSucc, Cond,
                       MI.getDebugLoc());
-    GtBB->addSuccessor(FBB);
-    GtBB->addSuccessor(TBB);
 
-    replacePhiBB(*MF, TBB, &OrigBB, GtBB);
-    addPhiBB(*MF, FBB, &OrigBB, GtBB);
+    GtBB->addSuccessor(FalseSucc, FalseProb);
+    GtBB->addSuccessor(TrueSucc, TrueProb);
+
+    replacePhiBB(*MF, TrueSucc, &OrigBB, GtBB);
+    addPhiBB(*MF, FalseSucc, &OrigBB, GtBB);
   }
 
   NextMBBI = OrigBB.end();
@@ -1261,14 +1280,27 @@ bool RISCVPreRAExpandPseudo::expandBNE(MachineBasicBlock &OrigBB,
   MachineInstr &MI = *MBBI;
   assert(MI.getNumOperands() == 3 && "Expected BNE to have 3 operands");
 
-  MachineBasicBlock *TBB = nullptr;
-  MachineBasicBlock *FBB = nullptr;
+  MachineBasicBlock *TrueSucc = nullptr;
+  MachineBasicBlock *FalseSucc = nullptr;
   SmallVector<MachineOperand, 3> Cond;
-  if (!TII->analyzeBranch(OrigBB, /*out*/ TBB, /*out*/ FBB, /*out*/ Cond,
+  if (!TII->analyzeBranch(OrigBB, /*out*/ TrueSucc, /*out*/ FalseSucc,
+                          /*out*/ Cond,
                           /*AllowModify=*/false)) {
-    if (FBB == nullptr) {
-      return false;
+    // If there's no false branch, use the layout successor instead.
+    if (FalseSucc == nullptr) {
+      if (auto Next = std::next(OrigBB.getIterator());
+          Next != OrigBB.getParent()->end()) {
+        FalseSucc = &*Next;
+      }
     }
+    assert(FalseSucc != nullptr);
+
+    MachineBranchProbabilityInfo &MBPI =
+        getAnalysis<MachineBranchProbabilityInfoWrapperPass>().getMBPI();
+    auto TrueProb = MBPI.getEdgeProbability(&OrigBB, TrueSucc);
+    auto FalseProb = FalseSucc != nullptr
+                         ? MBPI.getEdgeProbability(&OrigBB, FalseSucc)
+                         : BranchProbability::getUnknown();
 
     assert(Cond.size() == 3 && "Invalid branch condition!");
     assert(Cond[0].getImm() == RISCVCC::CondCode::COND_NE);
@@ -1283,25 +1315,81 @@ bool RISCVPreRAExpandPseudo::expandBNE(MachineBasicBlock &OrigBB,
     TII->removeBranch(OrigBB);
 
     Cond[0].setImm(RISCVCC::CondCode::COND_LT);
-    TII->insertBranch(OrigBB, /*true bb=*/TBB, /*false bb=*/GtEqBB, Cond,
+    TII->insertBranch(OrigBB, /*true bb=*/TrueSucc, /*false bb=*/GtEqBB, Cond,
                       MI.getDebugLoc());
-    OrigBB.removeSuccessor(FBB);
-    OrigBB.addSuccessor(GtEqBB);
+    OrigBB.removeSuccessor(FalseSucc);
+    OrigBB.addSuccessor(GtEqBB, TrueProb);
 
     Cond[0].setImm(RISCVCC::CondCode::COND_LT);
     Cond[1].setIsKill(IsKilled[0]);
     Cond[2].setIsKill(IsKilled[1]);
     std::swap(Cond[1], Cond[2]);
-    TII->insertBranch(*GtEqBB, /*true bb=*/TBB, /*false bb=*/FBB, Cond,
-                      MI.getDebugLoc());
-    GtEqBB->addSuccessor(FBB);
-    GtEqBB->addSuccessor(TBB);
+    TII->insertBranch(*GtEqBB, /*true bb=*/TrueSucc, /*false bb=*/FalseSucc,
+                      Cond, MI.getDebugLoc());
+    GtEqBB->addSuccessor(FalseSucc, FalseProb);
+    GtEqBB->addSuccessor(TrueSucc, TrueProb);
 
-    replacePhiBB(*MF, FBB, &OrigBB, GtEqBB);
-    addPhiBB(*MF, TBB, &OrigBB, GtEqBB);
+    replacePhiBB(*MF, FalseSucc, &OrigBB, GtEqBB);
+    addPhiBB(*MF, TrueSucc, &OrigBB, GtEqBB);
   }
 
   NextMBBI = OrigBB.end();
+  return true;
+}
+
+bool RISCVPreRAExpandPseudo::expandBGE(MachineBasicBlock &MBB,
+                                       MachineBasicBlock::iterator MBBI,
+                                       MachineBasicBlock::iterator &NextMBBI) {
+  if (!STI->hasVendorXKeysomNoBge()) {
+    return false;
+  }
+  // Original:
+  //
+  //   bge rs1, rs2, offset
+  //
+  // The replacement code should look like:
+  //
+  //   blt rs2, rs1, offset
+
+  MachineInstr &MI = *MBBI;
+  assert(MI.getNumOperands() == 3 && "Expected BGE to have 3 operands");
+
+  MachineBasicBlock *TrueSucc = nullptr;
+  MachineBasicBlock *FalseSucc = nullptr;
+  SmallVector<MachineOperand, 3> Cond;
+  if (!TII->analyzeBranch(MBB, /*out*/ TrueSucc, /*out*/ FalseSucc,
+                          /*out*/ Cond, /*AllowModify=*/false)) {
+    MachineBranchProbabilityInfo &MBPI =
+        getAnalysis<MachineBranchProbabilityInfoWrapperPass>().getMBPI();
+    auto TrueProb = MBPI.getEdgeProbability(&MBB, TrueSucc);
+    auto FalseProb = FalseSucc != nullptr
+                         ? MBPI.getEdgeProbability(&MBB, FalseSucc)
+                         : BranchProbability::getUnknown();
+
+    assert(Cond.size() == 3 && "Invalid branch condition!");
+    assert(Cond[0].getImm() == RISCVCC::CondCode::COND_GE);
+
+    TII->removeBranch(MBB);
+
+    Cond[0].setImm(RISCVCC::CondCode::COND_LT);
+    std::swap(Cond[1], Cond[2]);
+    TII->insertBranch(MBB, /*true bb=*/TrueSucc, /*false bb=*/FalseSucc, Cond,
+                      MI.getDebugLoc());
+
+    if (MBB.hasSuccessorProbabilities()) {
+      for (auto It = MBB.succ_begin(), End = MBB.succ_end(); It != End; ++It) {
+        MachineBasicBlock *const Succ = *It;
+        if (Succ == TrueSucc && FalseProb != BranchProbability::getUnknown()) {
+          MBB.setSuccProbability(It, FalseProb);
+        } else if (Succ == FalseSucc &&
+                   TrueProb != BranchProbability::getUnknown()) {
+          MBB.setSuccProbability(It, TrueProb);
+        }
+      }
+    }
+  }
+
+  NextMBBI = MBB.end();
   return true;
 }
 
