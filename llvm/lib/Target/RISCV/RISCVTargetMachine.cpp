@@ -615,6 +615,10 @@ void RISCVPassConfig::addPreEmitPass2() {
   addPass(createUnpackMachineBundles([&](const MachineFunction &MF) {
     return MF.getFunction().getParent()->getModuleFlag("kcfi");
   }));
+
+  // *PBH*: Add a final expansion to catch instructions added by late passes
+  // (e.g. the atomic-pseudo pass).
+  addPass(createRISCVKeysomExpandPass(/*IsPreRA=*/false));
 }
 
 void RISCVPassConfig::addMachineSSAOptimization() {
@@ -647,6 +651,10 @@ void RISCVPassConfig::addPreRegAlloc() {
     addPass(&MachinePipelinerID);
 
   addPass(createRISCVVMV0EliminationPass());
+
+  // *PBH*: Add the initial expansion pass. Since this runs
+  // before register-allocation, it can create new virtual registers.
+  addPass(createRISCVKeysomExpandPass(/*IsPreRA=*/true));
 }
 
 void RISCVPassConfig::addFastRegAlloc() {

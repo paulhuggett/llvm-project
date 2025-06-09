@@ -67,6 +67,11 @@ void initializeRISCVExpandPseudoPass(PassRegistry &);
 FunctionPass *createRISCVPreRAExpandPseudoPass();
 void initializeRISCVPreRAExpandPseudoPass(PassRegistry &);
 
+// *PBH*: Begin added.
+FunctionPass *createRISCVKeysomExpandPass(bool IsPreRA);
+void initializeRISCVKeysomExpandPass(PassRegistry &);
+// *PBH*: End added.
+
 FunctionPass *createRISCVExpandAtomicPseudoPass();
 void initializeRISCVExpandAtomicPseudoPass(PassRegistry &);
 

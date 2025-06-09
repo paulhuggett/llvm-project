@@ -1376,6 +1376,11 @@ bool RISCVInstrInfo::reverseBranchCondition(
     // *PBH*: End.
   case RISCVCC::COND_LTU:
   case RISCVCC::COND_GEU:
+    // *PBH*: Begin. Don't use BGEU if it is not available.
+    if (STI.hasVendorXKeysomNoBgeu()) {
+      return true;
+    }
+    break;
   case RISCVCC::COND_CV_BEQIMM:
   case RISCVCC::COND_CV_BNEIMM:
     break;

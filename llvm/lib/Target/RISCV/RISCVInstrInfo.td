@@ -733,14 +733,19 @@ def JALR : RVInstI<0b000, OPC_JALR, (outs GPR:$rd),
            Sched<[WriteJalr, ReadJalr]>;
 } // hasSideEffects = 0, mayLoad = 0, mayStore = 0
 
+// *PBH*: Added HasVendorXKeysomBeq predicate
 let Predicates = [HasVendorXKeysomBeq] in
 def BEQ  : BranchCC_rri<0b000, "beq">;
+// *PBH*: Added HasVendorXKeysomBne predicate
 let Predicates = [HasVendorXKeysomBne] in
 def BNE  : BranchCC_rri<0b001, "bne">;
 def BLT  : BranchCC_rri<0b100, "blt">;
+// *PBH*: Added HasVendorXKeysomBge predicate
 let Predicates = [HasVendorXKeysomBge] in
 def BGE  : BranchCC_rri<0b101, "bge">;
 def BLTU : BranchCC_rri<0b110, "bltu">;
+// *PBH*: Added HasVendorXKeysomBgeu predicate
+let Predicates = [HasVendorXKeysomBgeu] in
 def BGEU : BranchCC_rri<0b111, "bgeu">;
 
 let IsSignExtendingOpW = 1 in {
@@ -1106,6 +1111,8 @@ def : InstAlias<"ble $rs, $rt, $offset",
                 (BGE  GPR:$rt, GPR:$rs, bare_simm13_lsb0:$offset), 0>;
 def : InstAlias<"bgtu $rs, $rt, $offset",
                 (BLTU GPR:$rt, GPR:$rs, bare_simm13_lsb0:$offset), 0>;
+// *PBH*: Added HasVendorXKeysomBgeu predicate
+let Predicates = [HasVendorXKeysomBgeu] in
 def : InstAlias<"bleu $rs, $rt, $offset",
                 (BGEU GPR:$rt, GPR:$rs, bare_simm13_lsb0:$offset), 0>;
 
