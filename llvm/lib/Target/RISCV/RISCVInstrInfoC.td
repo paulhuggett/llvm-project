@@ -505,7 +505,11 @@ def C_J : RVInst16CJ<0b101, 0b01, (outs), (ins bare_simm12_lsb0:$offset),
 }
 }
 
+// *PBH*: Added predicate HasVendorXKeysomCbeqz
+let Predicates = [HasStdExtZca, HasVendorXKeysomCbeqz] in
 def C_BEQZ : Bcz<0b110, "c.beqz">, Sched<[WriteJmp, ReadJmp]>;
+// *PBH*: Added predicate HasVendorXKeysomCbnez
+let Predicates = [HasStdExtZca, HasVendorXKeysomCbnez] in
 def C_BNEZ : Bcz<0b111, "c.bnez">, Sched<[WriteJmp, ReadJmp]>;
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
@@ -1016,16 +1020,24 @@ let Predicates = [HasStdExtZca] in {
 let Predicates = [HasStdExtZca, HasVendorXKeysomCj] in
 def : CompressPat<(JAL X0, bare_simm12_lsb0:$offset),
                   (C_J bare_simm12_lsb0:$offset)>;
+// *PBH*: Begin added HasVendorXKeysomCbeqz predicate
+let Predicates = [HasStdExtZca, HasVendorXKeysomCbeqz] in {
 def : CompressPat<(BEQ GPRC:$rs1, X0, bare_simm9_lsb0:$imm),
                   (C_BEQZ GPRC:$rs1, bare_simm9_lsb0:$imm)>;
 let isCompressOnly = true in
 def : CompressPat<(BEQ X0, GPRC:$rs1, bare_simm9_lsb0:$imm),
                   (C_BEQZ GPRC:$rs1, bare_simm9_lsb0:$imm)>;
+}
+// *PBH*: End added HasVendorXKeysomCbeqz predicate
+// *PBH*: Begin added HasVendorXKeysomCbnez predicate
+let Predicates = [HasStdExtZca, HasVendorXKeysomCbnez] in {
 def : CompressPat<(BNE GPRC:$rs1, X0, bare_simm9_lsb0:$imm),
                   (C_BNEZ GPRC:$rs1, bare_simm9_lsb0:$imm)>;
 let isCompressOnly = true in
 def : CompressPat<(BNE X0, GPRC:$rs1, bare_simm9_lsb0:$imm),
                   (C_BNEZ GPRC:$rs1, bare_simm9_lsb0:$imm)>;
+} // HasStdExtZca, HasVendorXKeysomCbnez
+// *PBH*: End added HasVendorXKeysomCbnez predicate
 } // Predicates = [HasStdExtZca]
 
 // Quadrant 2
