@@ -1116,10 +1116,27 @@ void RISCVFrameLowering::emitPrologue(MachineFunction &MF,
 
       const RISCVInstrInfo *TII = STI.getInstrInfo();
       if (isInt<12>(-(int)MaxAlignment.value())) {
-        BuildMI(MBB, MBBI, DL, TII->get(RISCV::ANDI), SPReg)
-            .addReg(SPReg)
-            .addImm(-(int)MaxAlignment.value())
-            .setMIFlag(MachineInstr::FrameSetup);
+        // *PBH*: Begin added substitute for the andi instruction.
+        if (Subtarget.hasVendorXKeysomNoAndi()) {
+          Register Vt =
+              MF.getRegInfo().createVirtualRegister(&RISCV::GPRRegClass);
+          // addi vt,x0,imm
+          BuildMI(MBB, MBBI, DL, TII->get(RISCV::ADDI), Vt)
+              .addReg(RISCV::X0)
+              .addImm(-(int)MaxAlignment.value())
+              .setMIFlag(MachineInstr::FrameSetup);
+          // and sp, sp, vt
+          BuildMI(MBB, MBBI, DL, TII->get(RISCV::AND), SPReg)
+              .addReg(SPReg)
+              .addReg(Vt)
+              .setMIFlag(MachineInstr::FrameSetup);
+        } else {
+          BuildMI(MBB, MBBI, DL, TII->get(RISCV::ANDI), SPReg)
+              .addReg(SPReg)
+              .addImm(-(int)MaxAlignment.value())
+              .setMIFlag(MachineInstr::FrameSetup);
+        }
+        // *PBH*: End added andi substitute.
       } else {
         unsigned ShiftAmount = Log2(MaxAlignment);
         Register VR =
