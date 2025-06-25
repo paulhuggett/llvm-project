@@ -518,8 +518,10 @@ private:
                   MachineBasicBlock::iterator &NextMBBI);
   bool expandBEQ(MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
                  MachineBasicBlock::iterator &NextMBBI);
+  bool expandBNE(MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
+                 MachineBasicBlock::iterator &NextMBBI);
 
-  bool expandSetLessThan(RISCVCC::CondCode CC, MachineBasicBlock &OrigBB,
+  bool expandSetLessThan(unsigned CC, MachineBasicBlock &OrigBB,
                          MachineBasicBlock::iterator MBBI,
                          MachineBasicBlock::iterator &NextMBBI);
 #ifndef NDEBUG
@@ -590,6 +592,8 @@ bool RISCVPreRAExpandPseudo::expandMI(MachineBasicBlock &MBB,
     return expandOR(MBB, MBBI, NextMBBI);
   case RISCV::BEQ:
     return expandBEQ(MBB, MBBI, NextMBBI);
+  case RISCV::BNE:
+    return expandBNE(MBB, MBBI, NextMBBI);
   case RISCV::PseudoSLTU:
     return expandSLTU(MBB, MBBI, NextMBBI);
   case RISCV::SRLI:
@@ -1024,7 +1028,7 @@ bool RISCVPreRAExpandPseudo::expandSLT(MachineBasicBlock &OrigBB,
     }
     return false;
   }
-  return this->expandSetLessThan(RISCVCC::COND_LT, OrigBB, MBBI, NextMBBI);
+  return this->expandSetLessThan(RISCV::BLT, OrigBB, MBBI, NextMBBI);
 }
 bool RISCVPreRAExpandPseudo::expandSLTU(MachineBasicBlock &OrigBB,
                                         MachineBasicBlock::iterator MBBI,
@@ -1042,11 +1046,11 @@ bool RISCVPreRAExpandPseudo::expandSLTU(MachineBasicBlock &OrigBB,
     }
     return false;
   }
-  return this->expandSetLessThan(RISCVCC::COND_LTU, OrigBB, MBBI, NextMBBI);
+  return this->expandSetLessThan(RISCV::BLTU, OrigBB, MBBI, NextMBBI);
 }
 
 bool RISCVPreRAExpandPseudo::expandSetLessThan(
-    RISCVCC::CondCode CC, MachineBasicBlock &OrigBB,
+    /*RISCVCC::CondCode*/unsigned CC, MachineBasicBlock &OrigBB,
     MachineBasicBlock::iterator MBBI, MachineBasicBlock::iterator &NextMBBI) {
 
   // The replacement code should look like:
@@ -1136,7 +1140,7 @@ bool RISCVPreRAExpandPseudo::expandSetLessThan(
 
 // Look in the Target BB for a PHI node that references OrigBB. If found, we
 // change it to a join from NewBB.
-static void fixTrueBBPhi(MachineFunction &MF, MachineBasicBlock *const TargetBB,
+static void replacePhiBB(MachineFunction &MF, MachineBasicBlock *const TargetBB,
                          MachineBasicBlock *const OrigBB,
                          MachineBasicBlock *const NewBB) {
   assert(TargetBB != nullptr && OrigBB != nullptr && NewBB != nullptr);
@@ -1159,10 +1163,9 @@ static void fixTrueBBPhi(MachineFunction &MF, MachineBasicBlock *const TargetBB,
 
 // Look in the Target BB for a PHI node that references OrigBB. If found, we add
 // an additional join from NewBB.
-static void fixFalseBBPhi(MachineFunction &MF,
-                          MachineBasicBlock *const TargetBB,
-                          MachineBasicBlock *const OrigBB,
-                          MachineBasicBlock *const NewBB) {
+static void addPhiBB(MachineFunction &MF, MachineBasicBlock *const TargetBB,
+                     MachineBasicBlock *const OrigBB,
+                     MachineBasicBlock *const NewBB) {
   assert(TargetBB != nullptr && OrigBB != nullptr && NewBB != nullptr);
   for (MachineInstr &Phi : *TargetBB) {
     if (!Phi.isPHI())
@@ -1215,7 +1218,7 @@ bool RISCVPreRAExpandPseudo::expandBEQ(MachineBasicBlock &OrigBB,
     }
 
     assert(Cond.size() == 3 && "Invalid branch condition!");
-    assert(Cond[0].getImm() == RISCVCC::CondCode::COND_EQ);
+    assert(Cond[0].getImm() == RISCV::BEQ);
     const std::array IsKilled{Cond[1].isKill(), Cond[2].isKill()};
     Cond[1].setIsKill(false);
     Cond[2].setIsKill(false);
@@ -1227,12 +1230,12 @@ bool RISCVPreRAExpandPseudo::expandBEQ(MachineBasicBlock &OrigBB,
     TII->removeBranch(OrigBB);
     OrigBB.removeSuccessor(TBB);
 
-    Cond[0].setImm(RISCVCC::CondCode::COND_LT);
+    Cond[0].setImm(RISCV::BLT);
     TII->insertBranch(OrigBB, /*true bb=*/FBB, /*false bb=*/GtBB, Cond,
                       MI.getDebugLoc());
     OrigBB.addSuccessor(GtBB);
 
-    Cond[0].setImm(RISCVCC::CondCode::COND_LT);
+    Cond[0].setImm(RISCV::BLT);
     Cond[1].setIsKill(IsKilled[0]);
     Cond[2].setIsKill(IsKilled[1]);
     std::swap(Cond[1], Cond[2]);
@@ -1241,8 +1244,73 @@ bool RISCVPreRAExpandPseudo::expandBEQ(MachineBasicBlock &OrigBB,
     GtBB->addSuccessor(FBB);
     GtBB->addSuccessor(TBB);
 
-    fixTrueBBPhi(*MF, TBB, &OrigBB, GtBB);
-    fixFalseBBPhi(*MF, FBB, &OrigBB, GtBB);
+    replacePhiBB(*MF, TBB, &OrigBB, GtBB);
+    addPhiBB(*MF, FBB, &OrigBB, GtBB);
+  }
+
+  NextMBBI = OrigBB.end();
+  return true;
+}
+
+bool RISCVPreRAExpandPseudo::expandBNE(MachineBasicBlock &OrigBB,
+                                       MachineBasicBlock::iterator MBBI,
+                                       MachineBasicBlock::iterator &NextMBBI) {
+  if (!STI->hasVendorXKeysomNoBne()) {
+    return false;
+  }
+  // Original:
+  //
+  //   bne rs1, rs2, offset
+  //
+  // The replacement code should look like:
+  //
+  //   [... previous instrs ...]
+  //   blt rs1, rs2, offset
+  //   blt rs2, rs1, offset
+  //   [... later instrs ...]
+
+  MachineFunction *const MF = OrigBB.getParent();
+  MachineInstr &MI = *MBBI;
+  assert(MI.getNumOperands() == 3 && "Expected BNE to have 3 operands");
+
+  MachineBasicBlock *TBB = nullptr;
+  MachineBasicBlock *FBB = nullptr;
+  SmallVector<MachineOperand, 3> Cond;
+  if (!TII->analyzeBranch(OrigBB, /*out*/ TBB, /*out*/ FBB, /*out*/ Cond,
+                          /*AllowModify=*/false)) {
+    if (FBB == nullptr) {
+      return false;
+    }
+
+    assert(Cond.size() == 3 && "Invalid branch condition!");
+    assert(Cond[0].getImm() == RISCV::BNE);//RISCVCC::CondCode::COND_NE);
+    const std::array IsKilled{Cond[1].isKill(), Cond[2].isKill()};
+    Cond[1].setIsKill(false);
+    Cond[2].setIsKill(false);
+
+    MachineBasicBlock *const GtEqBB =
+        MF->CreateMachineBasicBlock(OrigBB.getBasicBlock());
+    MF->insert(std::next(OrigBB.getIterator()), GtEqBB);
+
+    TII->removeBranch(OrigBB);
+
+    Cond[0].setImm(RISCV::BLT);
+    TII->insertBranch(OrigBB, /*true bb=*/TBB, /*false bb=*/GtEqBB, Cond,
+                      MI.getDebugLoc());
+    OrigBB.removeSuccessor(FBB);
+    OrigBB.addSuccessor(GtEqBB);
+
+    Cond[0].setImm(RISCV::BLT);//CC::CondCode::COND_LT);
+    Cond[1].setIsKill(IsKilled[0]);
+    Cond[2].setIsKill(IsKilled[1]);
+    std::swap(Cond[1], Cond[2]);
+    TII->insertBranch(*GtEqBB, /*true bb=*/TBB, /*false bb=*/FBB, Cond,
+                      MI.getDebugLoc());
+    GtEqBB->addSuccessor(FBB);
+    GtEqBB->addSuccessor(TBB);
+
+    replacePhiBB(*MF, FBB, &OrigBB, GtEqBB);
+    addPhiBB(*MF, TBB, &OrigBB, GtEqBB);
   }
 
   NextMBBI = OrigBB.end();
