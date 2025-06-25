@@ -402,7 +402,7 @@ def C_SD : CStore_rri<0b111, "c.sd", GPRC, uimm8_lsb000>,
 }
 
 // *PBH*: Begin added predicate HasVendorXKeysomCaddi
-let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCaddi] in {
+let Predicates = [HasStdExtZca, HasVendorXKeysomCaddi] in {
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def C_NOP : RVInst16CI<0b000, 0b01, (outs), (ins), "c.nop", "">,
             Sched<[WriteNop]> {
@@ -452,7 +452,7 @@ def C_LI : RVInst16CI<0b010, 0b01, (outs GPRNoX0:$rd), (ins simm6:$imm),
 // *PBH*: End added predicate
 
 //*PBH*: Added HasVendorXKeysomCaddi16sp predicate
-let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCaddi16sp] in {
+let Predicates = [HasStdExtZca, HasVendorXKeysomCaddi16sp] in {
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def C_ADDI16SP : RVInst16CI<0b011, 0b01, (outs SP:$rd_wb),
                             (ins SP:$rd, simm10_lsb0000nonzero:$imm),
@@ -997,7 +997,7 @@ let Predicates = [HasStdExtZca, HasVendorXKeysomCli] in
 def : CompressPat<(ADDI GPRNoX0:$rd, X0, simm6:$imm),
                   (C_LI GPRNoX0:$rd, simm6:$imm)>;
 // *PBH*: Added HasVendorXKeysomCaddi16sp predicate
-let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCaddi16sp] in
+let Predicates = [HasStdExtZca, HasVendorXKeysomCaddi16sp] in
 def : CompressPat<(ADDI X2, X2, simm10_lsb0000nonzero:$imm),
                   (C_ADDI16SP X2, simm10_lsb0000nonzero:$imm)>;
 // *PBH*: Added HasVendorXKeysomClui predicate
