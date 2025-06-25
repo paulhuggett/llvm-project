@@ -1016,7 +1016,7 @@ def : CompressPat<(ADDI GPRNoX0:$rs1, GPRNoX0:$rs1, simm6nonzero:$imm),
                   (C_ADDI GPRNoX0:$rs1, simm6nonzero:$imm)>;
 } // Predicates = [HasStdExtZca]
 
-// *PBH*: Added HasVendorXKeysomCJal predicate
+// *PBH*: Added HasVendorXKeysomCjal predicate
 let Predicates = [HasStdExtZca, IsRV32, HasVendorXKeysomCjal] in {
 def : CompressPat<(JAL X1, bare_simm12_lsb0:$offset),
                   (C_JAL bare_simm12_lsb0:$offset)>;
