@@ -63,29 +63,45 @@ def : Pat<(XLenVT (setne (Ty GPR:$rs1), (Ty simm12Plus1:$imm12))),
           (SLTU (XLenVT X0), (ADDI GPR:$rs1, (NegImm simm12Plus1:$imm12)))>;
 def : Pat<(XLenVT (setne (Ty GPR:$rs1), (Ty GPR:$rs2))),
           (SLTU (XLenVT X0), (XOR GPR:$rs1, GPR:$rs2))>;
+// *PBH*: Added Xori predicate
+let Predicates = [HasVendorXKeysomXori] in
 def : Pat<(XLenVT (setugt (Ty GPR:$rs1), (Ty simm12Minus1NonzeroNonNeg1:$imm))),
           (XORI (SLTIU GPR:$rs1,
                        (ImmPlus1 simm12Minus1NonzeroNonNeg1:$imm)), 1)>;
 def : Pat<(XLenVT (setugt (Ty GPR:$rs1), (Ty GPR:$rs2))),
           (SLTU GPR:$rs2, GPR:$rs1)>;
+// *PBH*: Added Xori predicate
+let Predicates = [HasVendorXKeysomXori] in
 def : Pat<(XLenVT (setgt (Ty GPR:$rs1), (Ty simm12Minus1Nonzero:$imm))),
           (XORI (SLTI GPR:$rs1, (ImmPlus1 simm12Minus1Nonzero:$imm)), 1)>;
 def : Pat<(XLenVT (setgt (Ty GPR:$rs1), (Ty GPR:$rs2))),
           (SLT GPR:$rs2, GPR:$rs1)>;
+// *PBH*: Added Xori predicate
+let Predicates = [HasVendorXKeysomXori] in
 def : Pat<(XLenVT (setuge (XLenVT GPR:$rs1), (Ty simm12:$imm))),
           (XORI (SLTIU GPR:$rs1, simm12:$imm), 1)>;
+// *PBH*: Added Xori predicate
+let Predicates = [HasVendorXKeysomXori] in
 def : Pat<(XLenVT (setuge (Ty GPR:$rs1), (Ty GPR:$rs2))),
           (XORI (SLTU GPR:$rs1, GPR:$rs2), 1)>;
+// *PBH*: Added Xori predicate
+let Predicates = [HasVendorXKeysomXori] in
 def : Pat<(XLenVT (setge (Ty GPR:$rs1), (Ty simm12:$imm))),
           (XORI (SLTI GPR:$rs1, simm12:$imm), 1)>;
+// *PBH*: Added Xori predicate
+let Predicates = [HasVendorXKeysomXori] in
 def : Pat<(XLenVT (setge (Ty GPR:$rs1), (Ty GPR:$rs2))),
           (XORI (SLT GPR:$rs1, GPR:$rs2), 1)>;
 def : Pat<(XLenVT (setule (Ty GPR:$rs1), (Ty simm12Minus1NonzeroNonNeg1:$imm))),
           (SLTIU GPR:$rs1, (ImmPlus1 simm12Minus1NonzeroNonNeg1:$imm))>;
+// *PBH*: Added Xori predicate
+let Predicates = [HasVendorXKeysomXori] in
 def : Pat<(XLenVT (setule (Ty GPR:$rs1), (Ty GPR:$rs2))),
           (XORI (SLTU GPR:$rs2, GPR:$rs1), 1)>;
 def : Pat<(XLenVT (setle (Ty GPR:$rs1), (Ty simm12Minus1Nonzero:$imm))),
           (SLTI GPR:$rs1, (ImmPlus1 simm12Minus1Nonzero:$imm))>;
+// *PBH*: Added Xori predicate
+let Predicates = [HasVendorXKeysomXori] in
 def : Pat<(XLenVT (setle (Ty GPR:$rs1), (Ty GPR:$rs2))),
           (XORI (SLT GPR:$rs2, GPR:$rs1), 1)>;
 }

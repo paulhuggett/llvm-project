@@ -306,7 +306,8 @@ class PseudoMaskedAMOMinMaxPat<Intrinsic intrin, Pseudo AMOInst>
           (AMOInst GPR:$addr, GPR:$incr, GPR:$mask, GPR:$shiftamt,
            timm:$ordering)>;
 
-let Predicates = [HasStdExtA] in {
+// *PBH*: Added xori predicate
+let Predicates = [HasStdExtA, HasVendorXKeysomXori] in {
 
 let Size = 20 in
 def PseudoAtomicLoadNand32 : PseudoAMO;
