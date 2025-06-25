@@ -616,7 +616,7 @@ def C_MV : RVInst16CR<0b1000, 0b10, (outs GPRNoX0:$rs1), (ins GPRNoX0:$rs2),
 // *PBH*: End added HasVendorXKeysomCmv predicate
 
 // *PBH*: Begin added predicate HasVendorXKeysomCebreak
-let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCebreak] in {
+let Predicates = [HasStdExtZca, HasVendorXKeysomCebreak] in {
 let rs1 = 0, rs2 = 0, hasSideEffects = 1, mayLoad = 0, mayStore = 0 in
 def C_EBREAK : RVInst16CR<0b1001, 0b10, (outs), (ins), "c.ebreak", "">, Sched<[]>;
 }
@@ -1036,8 +1036,8 @@ def : CompressPat<(ADDI GPRNoX0:$rd, X0, simm6:$imm),
 let Predicates = [HasStdExtZca, HasVendorXKeysomCaddi16sp] in
 def : CompressPat<(ADDI X2, X2, simm10_lsb0000nonzero:$imm),
                   (C_ADDI16SP X2, simm10_lsb0000nonzero:$imm)>;
-// *PBH*: Added HasVendorXKeysomClui predicate
-let Predicates = [HasStdExtZca, HasVendorXKeysomClui] in
+// *PBH*: Added HasVendorXKeysomLui & HasVendorXKeysomClui predicate
+let Predicates = [HasStdExtZca, HasVendorXKeysomLui, HasVendorXKeysomClui] in
 def : CompressPat<(LUI GPRNoX0X2:$rd, c_lui_imm:$imm),
                   (C_LUI GPRNoX0X2:$rd, c_lui_imm:$imm)>;
 // *PBH*: Added HasVendorXKeysomCsrli predicate
@@ -1170,7 +1170,7 @@ def : CompressPat<(ADDI GPRNoX0:$rs1, GPRNoX0:$rs2, 0),
                   (C_MV GPRNoX0:$rs1, GPRNoX0:$rs2)>;
 }
 // *PBH*: End HasVendorXKeysomCebreak Predicate block
-let Predicates = [HasStdExtCOrZca, HasVendorXKeysomCebreak] in
+let Predicates = [HasStdExtZca, HasVendorXKeysomCebreak] in
 def : CompressPat<(EBREAK), (C_EBREAK)>;
 def : CompressPat<(UNIMP), (C_UNIMP)>;
 
