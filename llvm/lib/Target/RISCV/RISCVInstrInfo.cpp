@@ -1363,6 +1363,10 @@ bool RISCVInstrInfo::reverseBranchCondition(
   default:
     llvm_unreachable("Unknown conditional branch!");
   case RISCV::BEQ:
+    // *PBH*: added
+    if (STL.hasVendorXKeysomNoBeq()){
+      return true;
+    }
     Cond[0].setImm(RISCV::BNE);
     break;
   case RISCV::BNE:

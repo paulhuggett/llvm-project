@@ -1102,8 +1102,8 @@ let Predicates = [HasStdExtZca] in {
 let Predicates = [HasStdExtZca, HasVendorXKeysomCj] in
 def : CompressPat<(JAL X0, bare_simm12_lsb0:$offset),
                   (C_J bare_simm12_lsb0:$offset)>;
-// *PBH*: Begin added HasVendorXKeysomCbeqz predicate
-let Predicates = [HasStdExtZca, HasVendorXKeysomCbeqz] in {
+// *PBH*: Begin added HasVendorXKeysomCbeqz & HasVendorXKeysomBeq predicates
+let Predicates = [HasStdExtZca, HasVendorXKeysomCbeqz, HasVendorXKeysomBeq] in {
 def : CompressPat<(BEQ GPRC:$rs1, X0, bare_simm9_lsb0:$imm),
                   (C_BEQZ GPRC:$rs1, bare_simm9_lsb0:$imm)>;
 let isCompressOnly = true in
