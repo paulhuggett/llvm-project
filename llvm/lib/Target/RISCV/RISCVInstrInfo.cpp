@@ -1391,6 +1391,11 @@ bool RISCVInstrInfo::reverseBranchCondition(
     Cond[0].setImm(RISCV::BLT);
     break;
   case RISCV::BLTU:
+    // *PBH*: Begin. Don't use BGEU if it is not available.
+    if (STI.hasVendorXKeysomNoBgeu()) {
+      return true;
+    }
+    // *PBH*: End
     Cond[0].setImm(RISCV::BGEU);
     break;
   case RISCV::BGEU:

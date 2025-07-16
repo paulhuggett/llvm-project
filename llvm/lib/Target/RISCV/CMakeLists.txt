@@ -30,6 +30,9 @@ tablegen(LLVM RISCVGenPostLegalizeGICombiner.inc -gen-global-isel-combiner
 add_public_tablegen_target(RISCVCommonTableGen)
 
 add_llvm_target(RISCVCodeGen
+  # *PBH*: Added Keysom expansion pass
+  RISCVKeysomExpand.cpp
+
   RISCVAsmPrinter.cpp
   RISCVCallingConv.cpp
   RISCVCodeGenPrepare.cpp
