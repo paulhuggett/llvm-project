@@ -1359,11 +1359,12 @@ void RISCVInstrInfo::insertIndirectBranch(MachineBasicBlock &MBB,
 bool RISCVInstrInfo::reverseBranchCondition(
     SmallVectorImpl<MachineOperand> &Cond) const {
   assert((Cond.size() == 3) && "Invalid branch condition!");
+
   switch (Cond[0].getImm()) {
   default:
     llvm_unreachable("Unknown conditional branch!");
   case RISCV::BEQ:
-    // *PBH*: Begin. Don't use bne if it is not available.
+    // *PBH*: Begin. Don't use BNE if it is not available.
     if (STI.hasVendorXKeysomNoBne()) {
       return true;
     }
@@ -1379,6 +1380,11 @@ bool RISCVInstrInfo::reverseBranchCondition(
     Cond[0].setImm(RISCV::BEQ);
     break;
   case RISCV::BLT:
+    // *PBH*: Begin. Don't use BGE if it is not available.
+    if (STI.hasVendorXKeysomNoBge()) {
+      return true;
+    }
+    // *PBH*: End
     Cond[0].setImm(RISCV::BGE);
     break;
   case RISCV::BGE:
