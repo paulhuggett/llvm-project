@@ -619,6 +619,19 @@ void baremetal::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("--no-relax");
   }
 
+  // *PBH*: Begin: Pass target features to the linker.
+  bool LinkerIsLLD = false;
+  TC.GetLinkerPath(&LinkerIsLLD);
+  if (Triple.isRISCV() && LinkerIsLLD) {
+    std::vector<StringRef> Features;
+    riscv::getRISCVTargetFeatures(D, Triple, Args, Features);
+    for (StringRef const Feature : unifyTargetFeatures(Features)) {
+      CmdArgs.push_back(
+          Args.MakeArgString(Twine{"-plugin-opt=-mattr=", Feature}));
+    }
+  }
+  // *PBH*: End: pass target features to the linker.
+
   if (Triple.isARM() || Triple.isThumb()) {
     bool IsBigEndian = arm::isARMBigEndian(Triple, Args);
     if (IsBigEndian)
