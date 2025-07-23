@@ -200,19 +200,35 @@ RISCVTargetMachine::RISCVTargetMachine(const Target &T, const Triple &TT,
   setCFIFixup(true);
 }
 
-#if 0
+// *PBH*: Begin. This class merges and de-duplicates lists of subtarget features
+class FeatureJoiner {
+public:
+  void add(const SubtargetFeatures & Features) {
+    for (std::string const & Feature : reverse(Features.getFeatures())) {
+      if (UsedFeatures_.insert(StringRef{Feature}.drop_front()).second)
+        UnifiedFeatures_.insert(UnifiedFeatures_.begin(), Feature);
+    }
+  }
+  std::string getString() const {
+    return join(std::begin(UnifiedFeatures_), std::end(UnifiedFeatures_), ",");
+  }
+private:
+  SmallVector<StringRef> UnifiedFeatures_;
+  DenseSet<StringRef> UsedFeatures_;
+};
+
 static std::string mergeSubtargetFeatures(const std::string &A,
                                           const std::string &B) {
-  if (B.empty()) {
-    return A;
-  }
-  SubtargetFeatures Features{A};
-  std::vector<std::string> V;
-  SubtargetFeatures::Split(V, B);
-  Features.addFeaturesVector(V);
-  return Features.getString();
+  // FeatureJoiner has StringRefs which point into these objects.
+  SubtargetFeatures SFB{B};
+  SubtargetFeatures SFA{A};
+
+  FeatureJoiner Joiner;
+  Joiner.add(SFB); // Add B first: it overrides the contents of A.
+  Joiner.add(SFA);
+  return Joiner.getString();
 }
-#endif
+// *PBH*: End.
 
 const RISCVSubtarget *
 RISCVTargetMachine::getSubtargetImpl(const Function &F) const {
@@ -224,15 +240,8 @@ RISCVTargetMachine::getSubtargetImpl(const Function &F) const {
       CPUAttr.isValid() ? CPUAttr.getValueAsString().str() : TargetCPU;
   std::string TuneCPU =
       TuneAttr.isValid() ? TuneAttr.getValueAsString().str() : CPU;
-#if 0
-  std::string FS =
-      FSAttr.isValid() ? FSAttr.getValueAsString().str() : TargetFS;
-#elif 1
-  std::string FS = join_items(',', FSAttr.getValueAsString().str(), TargetFS);
-#else
-  std::string FS =
-      mergeSubtargetFeatures(FSAttr.getValueAsString().str(), TargetFS);
-#endif
+  // *PBH: Changed so that we add command-line specified features to any exiting.
+  std::string FS = mergeSubtargetFeatures(FSAttr.getValueAsString().str(), TargetFS);
 
   unsigned RVVBitsMin = RVVVectorBitsMinOpt;
   unsigned RVVBitsMax = RVVVectorBitsMaxOpt;

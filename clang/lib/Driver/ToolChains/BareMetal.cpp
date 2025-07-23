@@ -626,8 +626,8 @@ void baremetal::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     std::vector<StringRef> Features;
     riscv::getRISCVTargetFeatures(D, Triple, Args, Features);
     for (StringRef const Feature : unifyTargetFeatures(Features)) {
-      CmdArgs.push_back(
-          Args.MakeArgString(Twine{"-plugin-opt=-mattr=", Feature}));
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back(Args.MakeArgString(Twine{"-mattr=", Feature}));
     }
   }
   // *PBH*: End: pass target features to the linker.
