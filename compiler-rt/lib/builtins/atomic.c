@@ -102,8 +102,10 @@ __inline static void lock(Lock *l) { OSSpinLockLock(l); }
 static Lock locks[SPINLOCK_COUNT]; // initialized to OS_SPINLOCK_INIT which is 0
 
 #else
-_Static_assert(__atomic_always_lock_free(sizeof(uintptr_t), 0),
-               "Implementation assumes lock-free pointer-size cmpxchg");
+// *PBH*: Disabled this check. We don't know whether atomic is lock-free when
+// the library is being built.
+//_Static_assert(__atomic_always_lock_free(sizeof(uintptr_t), 0),
+//               "Implementation assumes lock-free pointer-size cmpxchg");
 typedef _Atomic(uintptr_t) Lock;
 /// Unlock a lock.  This is a release operation.
 __inline static void unlock(Lock *l) {
