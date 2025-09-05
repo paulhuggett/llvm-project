@@ -12,12 +12,15 @@
 
 #include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/MachineBranchProbabilityInfo.h"
+#include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
-#include "llvm/MC/MCContext.h"
+#include "llvm/IR/GlobalVariable.h"
+#include "llvm/Support/Alignment.h"
 
 using namespace llvm;
 
+#define DEBUG_TYPE "keysom-expand"
 #define RISCV_KEYSOM_EXPAND "RISC-V Keysom disabled instruction expansion pass"
 
 namespace {
@@ -31,6 +34,15 @@ public:
                     const RISCVInstrInfo *TII)
       : MRI_{MRI}, RegClass_{RegClass}, OrigBB_{OrigBB}, MBBI_{MBBI}, DL_{DL},
         STI_{STI}, TII_{TII} {}
+  [[nodiscard]] Register rvAdd(Register Rs1, Register Rs2) {
+    return this->buildTwoReg(RISCV::ADD, Rs1, Rs2);
+  }
+  [[nodiscard]] Register rvAdd(MachineOperand Op1, MachineOperand Op2) {
+    Register Rd = MRI_.createVirtualRegister(RegClass_);
+    auto Instruction = Op2.isReg() ? RISCV::ADD : RISCV::ADDI;
+    BuildMI(OrigBB_, MBBI_, DL_, TII_->get(Instruction), Rd).add(Op1).add(Op2);
+    return Rd;
+  }
   [[nodiscard]] Register rvAddi(Register Rs1, int64_t Immediate) {
     return this->buildImmediate(true, RISCV::ADDI, RISCV::ADDI, Rs1, Immediate);
   }
@@ -49,6 +61,7 @@ public:
     return this->buildImmediate(!STI_->hasVendorXKeysomNoXori(), RISCV::XORI,
                                 RISCV::XOR, Rs1, Immediate);
   }
+  [[nodiscard]] Register rvNot(Register Rs1) { return this->rvXori(Rs1, -1); }
   void rvXori(Register Rd, Register Rs1, int64_t Immediate) {
     this->buildImmediate(!STI_->hasVendorXKeysomNoXori(), RISCV::XORI,
                          RISCV::XOR, Rd, Rs1, Immediate);
@@ -73,6 +86,31 @@ public:
                                 RISCV::AND, Rd, Rs1, Immediate);
   }
 
+  [[nodiscard]] Register rvLh(int64_t Offset, Register Rs1) {
+    // TODO: check that lh is available!
+    Register Rd = MRI_.createVirtualRegister(RegClass_);
+    BuildMI(OrigBB_, MBBI_, DL_, TII_->get(RISCV::LH), Rd)
+        .addReg(Rs1)
+        .addImm(Offset);
+    return Rd;
+  }
+
+  MachineInstrBuilder rvSh(Register Rs2, int64_t Offset, Register Rs1,
+                           Align Alignment = Align(2)) {
+    // TODO: check that sh is available!
+    auto *const Function = OrigBB_.getParent();
+    auto MMO = Function->getMachineMemOperand(
+        MachinePointerInfo(), MachineMemOperand::MOStore, 2, Alignment);
+    return BuildMI(OrigBB_, MBBI_, DL_, TII_->get(RISCV::SH))
+        .addReg(Rs2)
+        .addReg(Rs1)
+        .addImm(Offset)
+        .addMemOperand(MMO);
+  }
+
+  [[nodiscard]] Register rvOr(Register Rs1, Register Rs2) {
+    return this->buildTwoReg(RISCV::OR, Rs1, Rs2);
+  }
   [[nodiscard]] Register rvOri(Register Rs1, int64_t Immediate) {
     return this->buildImmediate(!STI_->hasVendorXKeysomNoOri(), RISCV::ORI,
                                 RISCV::OR, Rs1, Immediate);
@@ -86,6 +124,9 @@ public:
     return this->buildTwoReg(RISCV::SLL, Rs1, Rs2);
   }
   [[nodiscard]] Register rvSlli(Register Rs1, int64_t ShAmt) {
+    if (ShAmt == 0) {
+      return Rs1;
+    }
     return this->buildImmediate(!STI_->hasVendorXKeysomNoSlli(), RISCV::SLLI,
                                 RISCV::SLL, Rs1, ShAmt);
   }
@@ -109,6 +150,10 @@ public:
   void rvSlli(Register Rd, Register Rs1, int64_t ShAmt) {
     return this->buildImmediate(!STI_->hasVendorXKeysomNoSlli(), RISCV::SLLI,
                                 RISCV::SLL, Rd, Rs1, ShAmt);
+  }
+
+  [[nodiscard]] Register rvSltu(Register Rs1, Register Rs2) {
+    return this->buildTwoReg(RISCV::SLTU, Rs1, Rs2);
   }
 
   [[nodiscard]] Register rvSrli(Register Rs1, int64_t ShAmt) {
@@ -212,8 +257,10 @@ private:
                  MachineBasicBlock::iterator &NextMBBI);
   bool expandBGEU(MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
                   MachineBasicBlock::iterator &NextMBBI);
+  bool expandSB(MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
+                MachineBasicBlock::iterator &NextMBBI);
 
-  bool expandBranchGreaterEqual(unsigned CC, MachineBasicBlock &MBB,
+  bool expandBranchGreaterEqual(MachineBasicBlock &MBB,
                                 MachineBasicBlock::iterator MBBI,
                                 MachineBasicBlock::iterator &NextMBBI);
   bool expandSetLessThan(unsigned CC, MachineBasicBlock &OrigBB,
@@ -229,25 +276,36 @@ bool RISCVKeysomExpand::runOnMachineFunction(MachineFunction &MF) {
   bool Modified = false;
   for (auto &MBB : MF)
     Modified |= expandMBB(MBB);
+
+  // MF.print(dbgs(), nullptr);
   return Modified;
 }
 
 bool RISCVKeysomExpand::expandMBB(MachineBasicBlock &MBB) {
-  bool Modified = false;
+  bool AnyModified = false;
 
-  MachineBasicBlock::iterator MBBI = MBB.begin(), E = MBB.end();
-  while (MBBI != E) {
-    MachineBasicBlock::iterator NMBBI = std::next(MBBI);
-    Modified |= expandMI(MBB, MBBI, NMBBI);
-    MBBI = NMBBI;
-  }
-  return Modified;
+  bool Modified = false;
+  do {
+    Modified = false;
+    LLVM_DEBUG(dbgs() << "start basic block iteration (" << MBB.getFullName()
+                      << ")\n");
+    MachineBasicBlock::iterator MBBIt = MBB.begin(), E = MBB.end();
+    while (MBBIt != E) {
+      auto NextMBBIt = std::next(MBBIt);
+      Modified |= expandMI(MBB, MBBIt, NextMBBIt);
+      MBBIt = NextMBBIt;
+    }
+    AnyModified |= Modified;
+  } while (Modified);
+  LLVM_DEBUG(dbgs() << "completed basic block\n");
+  return AnyModified;
 }
 
 bool RISCVKeysomExpand::expandMI(MachineBasicBlock &MBB,
                                  MachineBasicBlock::iterator MBBI,
                                  MachineBasicBlock::iterator &NextMBBI) {
-
+  LLVM_DEBUG(dbgs() << "expanding: " << TII_->getName(MBBI->getOpcode())
+                    << '\n');
   switch (MBBI->getOpcode()) {
   case RISCV::PseudoSLTIU:
     return expandSLTIU(MBB, MBBI, NextMBBI);
@@ -264,6 +322,7 @@ bool RISCVKeysomExpand::expandMI(MachineBasicBlock &MBB,
     return expandBGE(MBB, MBBI, NextMBBI);
   case RISCV::BGEU:
     return expandBGEU(MBB, MBBI, NextMBBI);
+  case RISCV::SLTU:
   case RISCV::PseudoSLTU:
     return expandSLTU(MBB, MBBI, NextMBBI);
   case RISCV::SRLI:
@@ -272,6 +331,8 @@ bool RISCVKeysomExpand::expandMI(MachineBasicBlock &MBB,
     return expandSRL(MBB, MBBI, NextMBBI);
   case RISCV::SRAI:
     return expandSRAI(MBB, MBBI, NextMBBI);
+  case RISCV::SB:
+    return expandSB(MBB, MBBI, NextMBBI);
   }
   return false;
 }
@@ -630,6 +691,7 @@ bool RISCVKeysomExpand::expandSetLessThan(
                  std::next(MachineBasicBlock::iterator{MI}), OrigBB.end());
   PostBB->transferSuccessorsAndUpdatePHIs(&OrigBB);
 
+  assert(CC == RISCV::BLT || CC == RISCV::BLTU);
   const MachineOperand Cond[] = {
       MachineOperand::CreateImm(CC),
       MachineOperand::CreateReg(Rs1, /*isDef=*/false),
@@ -884,8 +946,8 @@ bool RISCVKeysomExpand::expandBNE(MachineBasicBlock &OrigBB,
 
 // Used to expand the BGE and BGEU instructions.
 bool RISCVKeysomExpand::expandBranchGreaterEqual(
-    unsigned CC, MachineBasicBlock &MBB,
-    MachineBasicBlock::iterator MBBI, MachineBasicBlock::iterator &NextMBBI) {
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
+    MachineBasicBlock::iterator &NextMBBI) {
   // Original:
   //
   //   bge[u] rs1, rs2, offset
@@ -910,13 +972,11 @@ bool RISCVKeysomExpand::expandBranchGreaterEqual(
                          : BranchProbability::getUnknown();
 
     assert(Cond.size() == 3 && "Invalid branch condition!");
-    assert(Cond[0].getImm() == RISCV::BGE ||
-           Cond[0].getImm() == RISCV::BGEU);
-    assert(CC == RISCV::BLT || CC == RISCV::BLTU);
+    assert(Cond[0].getImm() == RISCV::BGE || Cond[0].getImm() == RISCV::BGEU);
 
     TII_->removeBranch(MBB);
 
-    Cond[0].setImm(CC);
+    Cond[0].setImm(Cond[0].getImm() == RISCV::BGE ? RISCV::BLT : RISCV::BLTU);
     std::swap(Cond[1], Cond[2]);
     TII_->insertBranch(MBB, /*true bb=*/TrueSucc, /*false bb=*/FalseSucc, Cond,
                        MI.getDebugLoc());
@@ -944,8 +1004,7 @@ bool RISCVKeysomExpand::expandBGE(MachineBasicBlock &MBB,
   if (!STI_->hasVendorXKeysomNoBge()) {
     return false;
   }
-  return this->expandBranchGreaterEqual(RISCVCC::CondCode::COND_LT, MBB, MBBI,
-                                        NextMBBI);
+  return this->expandBranchGreaterEqual(MBB, MBBI, NextMBBI);
 }
 
 bool RISCVKeysomExpand::expandBGEU(MachineBasicBlock &MBB,
@@ -954,8 +1013,7 @@ bool RISCVKeysomExpand::expandBGEU(MachineBasicBlock &MBB,
   if (!STI_->hasVendorXKeysomNoBgeu()) {
     return false;
   }
-  return this->expandBranchGreaterEqual(RISCVCC::CondCode::COND_LTU, MBB, MBBI,
-                                        NextMBBI);
+  return this->expandBranchGreaterEqual(MBB, MBBI, NextMBBI);
 }
 
 bool RISCVKeysomExpand::expandSRAI(MachineBasicBlock &OrigBB,
@@ -974,6 +1032,200 @@ bool RISCVKeysomExpand::expandSRAI(MachineBasicBlock &OrigBB,
   InstructionHelper Helper{
       MRI, MRI.getRegClass(Rd), OrigBB, MBBI, MI.getDebugLoc(), STI_, TII_};
   Helper.rvSrai(Rd, Rs1, ShAmt);
+  MI.eraseFromParent();
+  return true;
+}
+
+void updateMemOperands(MachineInstr *const Instruction, uint64_t NewOffset,
+                       LocationSize NewSize,
+                       MachineMemOperand::Flags NewFlags) {
+  MachineFunction &Function = *Instruction->getParent()->getParent();
+
+  if (!Instruction->memoperands_empty()) {
+    SmallVector<MachineMemOperand *, 1> NewMemRefs;
+
+    for (MachineMemOperand const *const MemOperand :
+         Instruction->memoperands()) {
+      // Create new pointer info with updated offset
+      MachinePointerInfo PtrInfo = MemOperand->getPointerInfo();
+      PtrInfo.Offset = NewOffset;
+
+      NewMemRefs.push_back(Function.getMachineMemOperand(
+          PtrInfo, NewFlags,
+          NewSize, // Updated size
+          MemOperand->getBaseAlign(), MemOperand->getAAInfo(),
+          MemOperand->getRanges(), MemOperand->getSyncScopeID(),
+          MemOperand->getSuccessOrdering(), MemOperand->getFailureOrdering()));
+    }
+
+    Instruction->setMemRefs(Function, NewMemRefs);
+  }
+}
+
+std::tuple<uint64_t, LocationSize, MachineMemOperand::Flags>
+getStoreMemOperands(MachineInstr const &MI) {
+  assert(MI.hasOneMemOperand());
+  MachineMemOperand const *const MMO = *MI.memoperands_begin();
+  return {MMO->getPointerInfo().Offset, MMO->getSize(), MMO->getFlags()};
+}
+
+constexpr MachineMemOperand::Flags
+memFlagsForStore(MachineMemOperand::Flags Flags) {
+  return (Flags & ~MachineMemOperand::Flags::MOLoad) |
+         MachineMemOperand::Flags::MOStore;
+}
+constexpr MachineMemOperand::Flags
+memFlagsForLoad(MachineMemOperand::Flags Flags) {
+  return (Flags & ~MachineMemOperand::Flags::MOStore) |
+         MachineMemOperand::Flags::MOLoad;
+}
+
+bool RISCVKeysomExpand::expandSB(MachineBasicBlock &OrigBB,
+                                 MachineBasicBlock::iterator MBBI,
+                                 MachineBasicBlock::iterator &NextMBBI) {
+  if (!STI_->hasVendorXKeysomNoSb()) {
+    return false;
+  }
+  MachineInstr &MI = *MBBI;
+  assert(MI.getNumOperands() == 3 && "Expected SB to have 3 operands");
+  Register Rs2 = MI.getOperand(0).getReg(); // destination is always a register.
+
+  MachineFunction *const Function = OrigBB.getParent();
+  MachineRegisterInfo &MRI = Function->getRegInfo();
+  InstructionHelper Helper{
+      MRI, MRI.getRegClass(Rs2), OrigBB, MBBI, MI.getDebugLoc(), STI_, TII_};
+
+  //
+  // 1. Substitute for sh (if available)
+  //
+  // (Assume that the alignment of Rs1 is unknown.)
+  //
+  //  Addr = Rs1 + sign-extend(offset)
+  //  AlignedAddr = Addr & ~1
+  //  HlValue = lh 0(AlignedAddr)
+  //
+  //  shift = sltu AlignedAddr, addr  ; AlignedAddr <= Addr
+  //                                  ; Shift is 1 if Addr was misaligned
+  //  ; if big-endian, need to invert the result. shift = !shift;
+  //  shift′ = shift << 3     ; shift′ is 0 or 8
+  //                          ; if little-endian, place the byte in the high
+  //                          half of the register
+  //
+  //  mask = 0xFF
+  //  mask′ = mask << shift′  ; mask′ is 0x00FF or 0xFF00
+  //
+  //  HlValue′ = HlValue & ~mask′
+  //  Rs2′ = Rs2 << shift′ // put rs2 in the correct half of the halfword
+  //  HlValue′′ = HlValue′ | Rs2′
+  //  Sh HlValue’’, 0(aligned_addr)
+  //
+
+  enum class AlignType { unknown, odd, even };
+  auto StoreAligned = AlignType::unknown;
+
+  // Code here attempts to determine whether the store is to an address that is
+  // known to be even or odd aligned.
+
+  for (MachineMemOperand const *const MemOperand : MI.memoperands()) {
+    if (Align Alignment = MemOperand->getAlign(); Alignment > Align(1)) {
+      const int64_t Offset = MemOperand->getOffset();
+      StoreAligned = (Offset > 0 && (static_cast<uint64_t>(Offset) & 1) != 0)
+                         ? AlignType::odd
+                         : AlignType::even;
+    }
+  }
+
+  DataLayout const &Layout = Function->getDataLayout();
+  auto &Op1 = MI.getOperand(1);
+  auto &Op2 = MI.getOperand(2);
+
+  // In the case of a store to a global structure, we can do better by
+  // examining the alignment of the struct itself and looking at the
+  // offset of the store within it.
+  if (Op1.isReg() && Op2.isGlobal()) {
+    if (const GlobalVariable *const GVar =
+            dyn_cast<GlobalVariable>(Op2.getGlobal())) {
+      if (StructType *const ST = dyn_cast<StructType>(GVar->getValueType())) {
+        const StructLayout *const SL = Layout.getStructLayout(ST);
+        if (SL->getAlignment() > Align(1)) {
+          StoreAligned =
+              (Op2.getOffset() & 1) == 0 ? AlignType::even : AlignType::odd;
+        }
+      }
+    }
+  }
+
+  auto const IsKill = Op1.isReg() && Op1.isKill();
+  auto setKill = [](MachineOperand &Op, bool const K) {
+    if (Op.isReg()) {
+      Op.setIsKill(K);
+    }
+  };
+  setKill(Op1, false);
+
+  auto [MOOffset, MOSize, MOFlags] = getStoreMemOperands(MI);
+  MOSize = MOSize.unionWith(LocationSize::precise(2));
+  MachineInstr *SHInstr = nullptr;
+
+  if (StoreAligned != AlignType::unknown) {
+    if (StoreAligned == AlignType::odd && Op2.isGlobal()) {
+      Op2.setOffset(Op2.getOffset() & ~1U);
+    }
+    Register Value = MRI.createVirtualRegister(MRI.getRegClass(Rs2));
+    MachineInstr *const LHInstr =
+        BuildMI(OrigBB, MBBI, MI.getDebugLoc(), TII_->get(RISCV::LH), Value)
+            .add(Op1)
+            .add(Op2)
+            .getInstr();
+    updateMemOperands(LHInstr, MOOffset, MOSize, memFlagsForLoad(MOFlags));
+
+    Register NewValue;
+    // TODO: invert for big-endian?
+    if (StoreAligned == AlignType::even) {
+      NewValue = Helper.rvOr(Helper.rvAndi(Value, -256), Rs2);
+    } else {
+      NewValue =
+          Helper.rvOr(Helper.rvAndi(Value, 0xFFU), Helper.rvSlli(Rs2, 8));
+    }
+
+    SHInstr = BuildMI(OrigBB, MBBI, MI.getDebugLoc(), TII_->get(RISCV::SH))
+                  .addReg(NewValue, RegState::Kill)
+                  .add(Op1)
+                  .add(Op2)
+                  .getInstr();
+  } else {
+    Register Addr = Helper.rvAdd(Op1, Op2);
+    Register AlignedAddr = Helper.rvAndi(Addr, ~1);
+    Register LHValue = MRI.createVirtualRegister(MRI.getRegClass(Rs2));
+    MachineInstr *const LHInstr =
+        BuildMI(OrigBB, MBBI, MI.getDebugLoc(), TII_->get(RISCV::LH), LHValue)
+            .addReg(AlignedAddr)
+            .addImm(0)
+            .getInstr();
+    updateMemOperands(LHInstr, MOOffset, MOSize, memFlagsForLoad(MOFlags));
+
+    Register Shift = Helper.rvSltu(
+        AlignedAddr, Addr); // Shift = AlignedAddr < Addr = 1(odd)/0(even)
+    if (Layout.isBigEndian()) {
+      Shift = Helper.rvXori(Shift, 1); // Shift = !Shift
+    }
+    Shift = Helper.rvSlli(Shift, 3); // Shift *= 8
+
+    Register Mask =
+        Helper.rvXori(Helper.rvSll(Helper.rvAddi(RISCV::X0, 0xFF), Shift),
+                      -1); // mask is 0x00FF (even) or 0xFF00 (odd)
+    Register Rs2Shifted = Helper.rvSll(Rs2, Shift);
+    Register HlValue2 = Helper.rvOr(Helper.rvAnd(LHValue, Mask), Rs2Shifted);
+
+    SHInstr = BuildMI(OrigBB, MBBI, MI.getDebugLoc(), TII_->get(RISCV::SH))
+                  .addReg(HlValue2, RegState::Kill)
+                  .addReg(AlignedAddr, RegState::Kill)
+                  .addImm(0)
+                  .getInstr();
+  }
+  updateMemOperands(SHInstr, MOOffset, MOSize, memFlagsForStore(MOFlags));
+  setKill(Op1, IsKill); // Restore the original kill state.
+
   MI.eraseFromParent();
   return true;
 }

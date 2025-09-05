@@ -1309,6 +1309,11 @@ defm Bge : KeysomPredicates<FeatureVendorXKeysomNoBge>;
 def FeatureVendorXKeysomNoBgeu : KeysomExtension<"Bgeu">;
 defm Bgeu : KeysomPredicates<FeatureVendorXKeysomNoBgeu>;
 
+// Load and Store Instructions
+
+def FeatureVendorXKeysomNoSb : KeysomExtension<"Sb">;
+defm Sb : KeysomPredicates<FeatureVendorXKeysomNoSb>;
+
 // *PBH*: TODO remove the nolui control.
 def FeatureVendorXKeysomNoLui : KeysomExtension<"Lui">;
 defm Lui : KeysomPredicates<FeatureVendorXKeysomNoLui>;
