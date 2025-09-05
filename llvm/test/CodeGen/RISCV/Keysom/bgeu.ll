@@ -3,8 +3,9 @@
 ; RUN:     --disable-block-placement < %s \
 ; RUN:   | FileCheck -check-prefixes=ALL %s
 ; RUN: llc -mtriple=riscv32 -riscv-no-aliases -verify-machineinstrs \
-; RUN:     -mattr=+xkeysomnobge < %s \
-; RUN:   | FileCheck -check-prefixes=NOBGE %s
+; RUN:     --disable-block-placement \
+; RUN:     -mattr=+xkeysomnobgeu < %s \
+; RUN:   | FileCheck -check-prefixes=NOBGEU %s
 
 define i32 @f(i32 %a, i32 %b) {
 ; ALL-LABEL: f:
@@ -17,15 +18,16 @@ define i32 @f(i32 %a, i32 %b) {
 ; ALL-NEXT:    addi a0, zero, 7
 ; ALL-NEXT:    jalr zero, 0(ra)
 ;
-; NOBGE-LABEL: f:
-; NOBGE:       # %bb.0: # %entry
-; NOBGE-NEXT:    bltu a0, a1, .LBB0_2
-; NOBGE-NEXT:  # %bb.1: # %entry
-; NOBGE-NEXT:    addi a0, zero, 7
-; NOBGE-NEXT:    jalr zero, 0(ra)
-; NOBGE-NEXT:  .LBB0_2:
-; NOBGE-NEXT:    addi a0, zero, 11
-; NOBGE-NEXT:    jalr zero, 0(ra)
+; NOBGEU-LABEL: f:
+; NOBGEU:       # %bb.0: # %entry
+; NOBGEU-NEXT:    bltu a0, a1, .LBB0_1
+; NOBGEU-NEXT:    jal zero, .LBB0_2
+; NOBGEU-NEXT:  .LBB0_1:
+; NOBGEU-NEXT:    addi a0, zero, 11
+; NOBGEU-NEXT:    jalr zero, 0(ra)
+; NOBGEU-NEXT:  .LBB0_2: # %entry
+; NOBGEU-NEXT:    addi a0, zero, 7
+; NOBGEU-NEXT:    jalr zero, 0(ra)
 
 entry:
   %cmp.not = icmp ult i32 %a, %b
