@@ -1311,6 +1311,9 @@ defm Bgeu : KeysomPredicates<FeatureVendorXKeysomNoBgeu>;
 
 // Load and Store Instructions
 
+def FeatureVendorXKeysomNoLb : KeysomExtension<"Lb">;
+defm Lb : KeysomPredicates<FeatureVendorXKeysomNoLb>;
+
 def FeatureVendorXKeysomNoSb : KeysomExtension<"Sb">;
 defm Sb : KeysomPredicates<FeatureVendorXKeysomNoSb>;
 

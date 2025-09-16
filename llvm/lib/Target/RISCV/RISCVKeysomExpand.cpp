@@ -259,6 +259,8 @@ private:
                   MachineBasicBlock::iterator &NextMBBI);
   bool expandSB(MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
                 MachineBasicBlock::iterator &NextMBBI);
+  bool expandLB(MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
+                MachineBasicBlock::iterator &NextMBBI);
 
   bool expandBranchGreaterEqual(MachineBasicBlock &MBB,
                                 MachineBasicBlock::iterator MBBI,
@@ -331,6 +333,8 @@ bool RISCVKeysomExpand::expandMI(MachineBasicBlock &MBB,
     return expandSRL(MBB, MBBI, NextMBBI);
   case RISCV::SRAI:
     return expandSRAI(MBB, MBBI, NextMBBI);
+  case RISCV::LB:
+    return expandLB(MBB, MBBI, NextMBBI);
   case RISCV::SB:
     return expandSB(MBB, MBBI, NextMBBI);
   }
@@ -1080,6 +1084,45 @@ memFlagsForLoad(MachineMemOperand::Flags Flags) {
          MachineMemOperand::Flags::MOLoad;
 }
 
+enum class AlignType { unknown, odd, even };
+
+static AlignType getAlignmentKind(MachineInstr const &MI,
+                                  MachineFunction const &Function) {
+  auto OpAligned = AlignType::unknown;
+
+  // Code here attempts to determine whether the store is to an address that is
+  // known to be even or odd aligned.
+  for (MachineMemOperand const *const MemOperand : MI.memoperands()) {
+    if (Align Alignment = MemOperand->getAlign(); Alignment > Align(1)) {
+      const int64_t Offset = MemOperand->getOffset();
+      OpAligned = (Offset > 0 && (static_cast<uint64_t>(Offset) & 1) != 0)
+                      ? AlignType::odd
+                      : AlignType::even;
+    }
+  }
+
+  DataLayout const &Layout = Function.getDataLayout();
+  auto &Op1 = MI.getOperand(1);
+  auto &Op2 = MI.getOperand(2);
+
+  // In the case of a store to a global structure, we can do better by
+  // examining the alignment of the struct itself and looking at the
+  // offset of the store within it.
+  if (Op1.isReg() && Op2.isGlobal()) {
+    if (const GlobalVariable *const GVar =
+            dyn_cast<GlobalVariable>(Op2.getGlobal())) {
+      if (StructType *const ST = dyn_cast<StructType>(GVar->getValueType())) {
+        const StructLayout *const SL = Layout.getStructLayout(ST);
+        if (SL->getAlignment() > Align(1)) {
+          OpAligned =
+              (Op2.getOffset() & 1) == 0 ? AlignType::even : AlignType::odd;
+        }
+      }
+    }
+  }
+  return OpAligned;
+}
+
 bool RISCVKeysomExpand::expandSB(MachineBasicBlock &OrigBB,
                                  MachineBasicBlock::iterator MBBI,
                                  MachineBasicBlock::iterator &NextMBBI) {
@@ -1120,40 +1163,10 @@ bool RISCVKeysomExpand::expandSB(MachineBasicBlock &OrigBB,
   //  Sh HlValue’’, 0(aligned_addr)
   //
 
-  enum class AlignType { unknown, odd, even };
-  auto StoreAligned = AlignType::unknown;
-
-  // Code here attempts to determine whether the store is to an address that is
-  // known to be even or odd aligned.
-
-  for (MachineMemOperand const *const MemOperand : MI.memoperands()) {
-    if (Align Alignment = MemOperand->getAlign(); Alignment > Align(1)) {
-      const int64_t Offset = MemOperand->getOffset();
-      StoreAligned = (Offset > 0 && (static_cast<uint64_t>(Offset) & 1) != 0)
-                         ? AlignType::odd
-                         : AlignType::even;
-    }
-  }
-
+  AlignType StoreAligned = getAlignmentKind(MI, *Function);
   DataLayout const &Layout = Function->getDataLayout();
   auto &Op1 = MI.getOperand(1);
   auto &Op2 = MI.getOperand(2);
-
-  // In the case of a store to a global structure, we can do better by
-  // examining the alignment of the struct itself and looking at the
-  // offset of the store within it.
-  if (Op1.isReg() && Op2.isGlobal()) {
-    if (const GlobalVariable *const GVar =
-            dyn_cast<GlobalVariable>(Op2.getGlobal())) {
-      if (StructType *const ST = dyn_cast<StructType>(GVar->getValueType())) {
-        const StructLayout *const SL = Layout.getStructLayout(ST);
-        if (SL->getAlignment() > Align(1)) {
-          StoreAligned =
-              (Op2.getOffset() & 1) == 0 ? AlignType::even : AlignType::odd;
-        }
-      }
-    }
-  }
 
   auto const IsKill = Op1.isReg() && Op1.isKill();
   auto setKill = [](MachineOperand &Op, bool const K) {
@@ -1225,6 +1238,76 @@ bool RISCVKeysomExpand::expandSB(MachineBasicBlock &OrigBB,
   }
   updateMemOperands(SHInstr, MOOffset, MOSize, memFlagsForStore(MOFlags));
   setKill(Op1, IsKill); // Restore the original kill state.
+
+  MI.eraseFromParent();
+  return true;
+}
+
+bool RISCVKeysomExpand::expandLB(MachineBasicBlock &OrigBB,
+                                 MachineBasicBlock::iterator MBBI,
+                                 MachineBasicBlock::iterator &NextMBBI) {
+  if (!STI_->hasVendorXKeysomNoLb()) {
+    return false;
+  }
+  MachineInstr &MI = *MBBI;
+  assert(MI.getNumOperands() == 3 && "Expected LB to have 3 operands");
+  Register Rs2 = MI.getOperand(0).getReg(); // destination is always a register.
+
+  MachineFunction *const Function = OrigBB.getParent();
+  MachineRegisterInfo &MRI = Function->getRegInfo();
+  InstructionHelper Helper{
+      MRI, MRI.getRegClass(Rs2), OrigBB, MBBI, MI.getDebugLoc(), STI_, TII_};
+
+  AlignType LoadAligned = getAlignmentKind(MI, *Function);
+
+  auto &Op1 = MI.getOperand(1);
+  auto &Op2 = MI.getOperand(2);
+
+  auto [MOOffset, MOSize, MOFlags] = getStoreMemOperands(MI);
+  MOSize = MOSize.unionWith(LocationSize::precise(2));
+
+  Register Result{};
+  int64_t ShAmt = 24;
+  if (LoadAligned == AlignType::odd) {
+    if (Op2.isGlobal()) {
+      Op2.setOffset(Op2.getOffset() & ~1U);
+    }
+    Result = MRI.createVirtualRegister(MRI.getRegClass(Rs2));
+    MachineInstr *const LHInstr =
+        BuildMI(OrigBB, MBBI, MI.getDebugLoc(), TII_->get(RISCV::LH), Result)
+            .add(Op1)
+            .add(Op2)
+            .getInstr();
+    updateMemOperands(LHInstr, MOOffset, MOSize, memFlagsForLoad(MOFlags));
+    // The value is in bits 8-15.
+    ShAmt = 16;
+  } else if (LoadAligned == AlignType::even) {
+    Result = MRI.createVirtualRegister(MRI.getRegClass(Rs2));
+    MachineInstr *const LHInstr =
+        BuildMI(OrigBB, MBBI, MI.getDebugLoc(), TII_->get(RISCV::LH), Result)
+            .add(Op1)
+            .add(Op2)
+            .getInstr();
+    updateMemOperands(LHInstr, MOOffset, MOSize, memFlagsForLoad(MOFlags));
+  } else {
+    Register Addr = Helper.rvAdd(Op1, Op2);
+    Register AlignedAddr = Helper.rvAndi(Addr, ~1);
+    Register LHValue = MRI.createVirtualRegister(MRI.getRegClass(Rs2));
+    MachineInstr *const LHInstr =
+        BuildMI(OrigBB, MBBI, MI.getDebugLoc(), TII_->get(RISCV::LH), LHValue)
+            .addReg(AlignedAddr)
+            .addImm(0)
+            .getInstr();
+    updateMemOperands(LHInstr, MOOffset, MOSize, memFlagsForLoad(MOFlags));
+    // Shift = AlignedAddr < Addr = 1(odd)/0(even)
+    Register Shift = Helper.rvSltu(AlignedAddr, Addr);
+    Register Shift8 = Helper.rvSlli(Shift, 3); // Shift *= 8
+    Result = Helper.rvSrl(LHValue, Shift8);    // Rs2 = LhValue << Shift8
+  }
+
+  // Now do the sign extension.
+  Register ShiftToTop = Helper.rvSlli(Result, ShAmt); // move bit 7 to bit 31
+  Helper.rvSrai(Rs2, ShiftToTop, 24); // arithmetic shift right fills with sign
 
   MI.eraseFromParent();
   return true;
