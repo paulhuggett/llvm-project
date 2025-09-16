@@ -260,7 +260,7 @@ private:
   bool expandSB(MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
                 MachineBasicBlock::iterator &NextMBBI);
   bool expandLB(MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
-                MachineBasicBlock::iterator &NextMBBI);
+                MachineBasicBlock::iterator &NextMBBI, bool IsLBU);
 
   bool expandBranchGreaterEqual(MachineBasicBlock &MBB,
                                 MachineBasicBlock::iterator MBBI,
@@ -334,7 +334,9 @@ bool RISCVKeysomExpand::expandMI(MachineBasicBlock &MBB,
   case RISCV::SRAI:
     return expandSRAI(MBB, MBBI, NextMBBI);
   case RISCV::LB:
-    return expandLB(MBB, MBBI, NextMBBI);
+    return expandLB(MBB, MBBI, NextMBBI, /*IsLBU=*/false);
+  case RISCV::LBU:
+    return expandLB(MBB, MBBI, NextMBBI, /*IsLBU=*/true);
   case RISCV::SB:
     return expandSB(MBB, MBBI, NextMBBI);
   }
@@ -1245,10 +1247,15 @@ bool RISCVKeysomExpand::expandSB(MachineBasicBlock &OrigBB,
 
 bool RISCVKeysomExpand::expandLB(MachineBasicBlock &OrigBB,
                                  MachineBasicBlock::iterator MBBI,
-                                 MachineBasicBlock::iterator &NextMBBI) {
-  if (!STI_->hasVendorXKeysomNoLb()) {
+                                 MachineBasicBlock::iterator &NextMBBI,
+                                 bool IsLBU) {
+  if (IsLBU && !STI_->hasVendorXKeysomNoLbu()) {
     return false;
   }
+  if (!IsLBU && !STI_->hasVendorXKeysomNoLb()) {
+    return false;
+  }
+
   MachineInstr &MI = *MBBI;
   assert(MI.getNumOperands() == 3 && "Expected LB to have 3 operands");
   Register Rs2 = MI.getOperand(0).getReg(); // destination is always a register.
@@ -1266,6 +1273,9 @@ bool RISCVKeysomExpand::expandLB(MachineBasicBlock &OrigBB,
   auto [MOOffset, MOSize, MOFlags] = getStoreMemOperands(MI);
   MOSize = MOSize.unionWith(LocationSize::precise(2));
 
+  const MCInstrDesc &LoadInstruction =
+      TII_->get(IsLBU ? RISCV::LHU : RISCV::LH);
+
   Register Result{};
   int64_t ShAmt = 24;
   if (LoadAligned == AlignType::odd) {
@@ -1274,7 +1284,7 @@ bool RISCVKeysomExpand::expandLB(MachineBasicBlock &OrigBB,
     }
     Result = MRI.createVirtualRegister(MRI.getRegClass(Rs2));
     MachineInstr *const LHInstr =
-        BuildMI(OrigBB, MBBI, MI.getDebugLoc(), TII_->get(RISCV::LH), Result)
+        BuildMI(OrigBB, MBBI, MI.getDebugLoc(), LoadInstruction, Result)
             .add(Op1)
             .add(Op2)
             .getInstr();
@@ -1284,7 +1294,7 @@ bool RISCVKeysomExpand::expandLB(MachineBasicBlock &OrigBB,
   } else if (LoadAligned == AlignType::even) {
     Result = MRI.createVirtualRegister(MRI.getRegClass(Rs2));
     MachineInstr *const LHInstr =
-        BuildMI(OrigBB, MBBI, MI.getDebugLoc(), TII_->get(RISCV::LH), Result)
+        BuildMI(OrigBB, MBBI, MI.getDebugLoc(), LoadInstruction, Result)
             .add(Op1)
             .add(Op2)
             .getInstr();
@@ -1294,7 +1304,7 @@ bool RISCVKeysomExpand::expandLB(MachineBasicBlock &OrigBB,
     Register AlignedAddr = Helper.rvAndi(Addr, ~1);
     Register LHValue = MRI.createVirtualRegister(MRI.getRegClass(Rs2));
     MachineInstr *const LHInstr =
-        BuildMI(OrigBB, MBBI, MI.getDebugLoc(), TII_->get(RISCV::LH), LHValue)
+        BuildMI(OrigBB, MBBI, MI.getDebugLoc(), LoadInstruction, LHValue)
             .addReg(AlignedAddr)
             .addImm(0)
             .getInstr();
@@ -1305,9 +1315,19 @@ bool RISCVKeysomExpand::expandLB(MachineBasicBlock &OrigBB,
     Result = Helper.rvSrl(LHValue, Shift8);    // Rs2 = LhValue << Shift8
   }
 
-  // Now do the sign extension.
-  Register ShiftToTop = Helper.rvSlli(Result, ShAmt); // move bit 7 to bit 31
-  Helper.rvSrai(Rs2, ShiftToTop, 24); // arithmetic shift right fills with sign
+  if (IsLBU) {
+    // Zero extend
+    if (LoadAligned == AlignType::odd) {
+      Helper.rvAndi(Rs2, Helper.rvSrli(Result, 8), 0xFF);
+    } else {
+      Helper.rvAndi(Rs2, Result, 0xFF);
+    }
+  } else {
+    // Now do the sign extension.
+    Register ShiftToTop = Helper.rvSlli(Result, ShAmt); // move bit 7 to bit 31
+    Helper.rvSrai(Rs2, ShiftToTop,
+                  24); // arithmetic shift right fills with sign
+  }
 
   MI.eraseFromParent();
   return true;
