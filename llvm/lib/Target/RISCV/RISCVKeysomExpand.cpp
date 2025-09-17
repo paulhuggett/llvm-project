@@ -259,6 +259,8 @@ private:
                   MachineBasicBlock::iterator &NextMBBI);
   bool expandSB(MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
                 MachineBasicBlock::iterator &NextMBBI);
+  bool expandSH(MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
+                MachineBasicBlock::iterator &NextMBBI);
   bool expandLB(MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
                 MachineBasicBlock::iterator &NextMBBI, bool IsLBU);
 
@@ -339,6 +341,8 @@ bool RISCVKeysomExpand::expandMI(MachineBasicBlock &MBB,
     return expandLB(MBB, MBBI, NextMBBI, /*IsLBU=*/true);
   case RISCV::SB:
     return expandSB(MBB, MBBI, NextMBBI);
+  case RISCV::SH:
+    return expandSH(MBB, MBBI, NextMBBI);
   }
   return false;
 }
@@ -786,6 +790,15 @@ static void addPhiBB(MachineFunction &MF, MachineBasicBlock *const TargetBB,
   }
 }
 
+static bool setKill(MachineOperand &Op, bool const K) {
+  bool WasKill = false;
+  if (Op.isReg()) {
+    WasKill = Op.isKill();
+    Op.setIsKill(K);
+  }
+  return WasKill;
+}
+
 bool RISCVKeysomExpand::expandBEQ(MachineBasicBlock &OrigBB,
                                   MachineBasicBlock::iterator MBBI,
                                   MachineBasicBlock::iterator &NextMBBI) {
@@ -831,9 +844,7 @@ bool RISCVKeysomExpand::expandBEQ(MachineBasicBlock &OrigBB,
 
     assert(Cond.size() == 3 && "Invalid branch condition!");
     assert(Cond[0].getImm() == RISCV::BEQ);
-    const std::array IsKilled{Cond[1].isKill(), Cond[2].isKill()};
-    Cond[1].setIsKill(false);
-    Cond[2].setIsKill(false);
+    const std::array IsKilled{setKill(Cond[1], false), setKill(Cond[2], false)};
 
     MachineBasicBlock *const GtBB =
         MF->CreateMachineBasicBlock(OrigBB.getBasicBlock());
@@ -1170,13 +1181,7 @@ bool RISCVKeysomExpand::expandSB(MachineBasicBlock &OrigBB,
   auto &Op1 = MI.getOperand(1);
   auto &Op2 = MI.getOperand(2);
 
-  auto const IsKill = Op1.isReg() && Op1.isKill();
-  auto setKill = [](MachineOperand &Op, bool const K) {
-    if (Op.isReg()) {
-      Op.setIsKill(K);
-    }
-  };
-  setKill(Op1, false);
+  bool const WasKill = setKill(Op1, false);
 
   auto [MOOffset, MOSize, MOFlags] = getStoreMemOperands(MI);
   MOSize = MOSize.unionWith(LocationSize::precise(2));
@@ -1239,7 +1244,7 @@ bool RISCVKeysomExpand::expandSB(MachineBasicBlock &OrigBB,
                   .getInstr();
   }
   updateMemOperands(SHInstr, MOOffset, MOSize, memFlagsForStore(MOFlags));
-  setKill(Op1, IsKill); // Restore the original kill state.
+  setKill(Op1, WasKill); // Restore the original kill state.
 
   MI.eraseFromParent();
   return true;
@@ -1328,6 +1333,66 @@ bool RISCVKeysomExpand::expandLB(MachineBasicBlock &OrigBB,
     Helper.rvSrai(Rs2, ShiftToTop,
                   24); // arithmetic shift right fills with sign
   }
+
+  MI.eraseFromParent();
+  return true;
+}
+
+bool RISCVKeysomExpand::expandSH(MachineBasicBlock &OrigBB,
+                                 MachineBasicBlock::iterator MBBI,
+                                 MachineBasicBlock::iterator &NextMBBI) {
+  if (!STI_->hasVendorXKeysomNoSh()) {
+    return false;
+  }
+  MachineInstr &MI = *MBBI;
+  assert(MI.getNumOperands() == 3 && "Expected SH to have 3 operands");
+  Register Rs2 = MI.getOperand(0).getReg(); // destination is always a register.
+
+  MachineFunction *const Function = OrigBB.getParent();
+  MachineRegisterInfo &MRI = Function->getRegInfo();
+  InstructionHelper Helper{
+      MRI, MRI.getRegClass(Rs2), OrigBB, MBBI, MI.getDebugLoc(), STI_, TII_};
+
+  AlignType StoreAligned = AlignType::unknown;
+  // DataLayout const &Layout = Function->getDataLayout();
+  auto &Op1 = MI.getOperand(1);
+  auto &Op2 = MI.getOperand(2);
+
+  bool const WasKill = setKill(Op1, false);
+
+  auto [MOOffset, MOSize, MOFlags] = getStoreMemOperands(MI);
+  MOSize = MOSize.unionWith(LocationSize::precise(2));
+  MachineInstr *SWInstr = nullptr;
+
+  if (StoreAligned != AlignType::unknown) {
+    assert(false); // TODO
+  } else {
+    Register Addr = Helper.rvAdd(Op1, Op2);
+    Register AlignedAddr = Helper.rvAndi(Addr, ~0b11);
+    Register LHValue = MRI.createVirtualRegister(MRI.getRegClass(Rs2));
+    MachineInstr *const LHInstr =
+        BuildMI(OrigBB, MBBI, MI.getDebugLoc(), TII_->get(RISCV::LW), LHValue)
+            .addReg(AlignedAddr)
+            .addImm(0)
+            .getInstr();
+    updateMemOperands(LHInstr, MOOffset, MOSize, memFlagsForLoad(MOFlags));
+
+    Register Shift = Helper.rvSub(Addr, AlignedAddr);
+    Shift = Helper.rvSlli(Shift, 3); // Shift *= 8
+
+    Register Mask =
+        Helper.rvXori(Helper.rvSll(Helper.rvAddi(RISCV::X0, 0xFF), Shift), -1);
+    Register Rs2Shifted = Helper.rvSll(Rs2, Shift);
+    Register LHValue2 = Helper.rvOr(Helper.rvAnd(LHValue, Mask), Rs2Shifted);
+
+    SWInstr = BuildMI(OrigBB, MBBI, MI.getDebugLoc(), TII_->get(RISCV::SW))
+                  .addReg(LHValue2, RegState::Kill)
+                  .addReg(AlignedAddr, RegState::Kill)
+                  .addImm(0)
+                  .getInstr();
+  }
+  updateMemOperands(SWInstr, MOOffset, MOSize, memFlagsForStore(MOFlags));
+  setKill(Op1, WasKill); // Restore the original kill state.
 
   MI.eraseFromParent();
   return true;
