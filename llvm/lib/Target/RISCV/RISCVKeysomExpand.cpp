@@ -86,6 +86,12 @@ public:
                                 RISCV::AND, Rd, Rs1, Immediate);
   }
 
+  [[nodiscard]] Register rvLui(int64_t Imm) {
+    Register Rd = MRI_.createVirtualRegister(RegClass_);
+    BuildMI(OrigBB_, MBBI_, DL_, TII_->get(RISCV::LUI), Rd).addImm(Imm);
+    return Rd;
+  }
+
   [[nodiscard]] Register rvLh(int64_t Offset, Register Rs1) {
     // TODO: check that lh is available!
     Register Rd = MRI_.createVirtualRegister(RegClass_);
@@ -263,6 +269,8 @@ private:
                 MachineBasicBlock::iterator &NextMBBI);
   bool expandLB(MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
                 MachineBasicBlock::iterator &NextMBBI, bool IsLBU);
+  bool expandLH(MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
+                MachineBasicBlock::iterator &NextMBBI, bool IsLHU);
 
   bool expandBranchGreaterEqual(MachineBasicBlock &MBB,
                                 MachineBasicBlock::iterator MBBI,
@@ -339,6 +347,10 @@ bool RISCVKeysomExpand::expandMI(MachineBasicBlock &MBB,
     return expandLB(MBB, MBBI, NextMBBI, /*IsLBU=*/false);
   case RISCV::LBU:
     return expandLB(MBB, MBBI, NextMBBI, /*IsLBU=*/true);
+  case RISCV::LH:
+    return expandLH(MBB, MBBI, NextMBBI, /*IsLHU=*/false);
+  case RISCV::LHU:
+    return expandLH(MBB, MBBI, NextMBBI, /*IsLHU=*/true);
   case RISCV::SB:
     return expandSB(MBB, MBBI, NextMBBI);
   case RISCV::SH:
@@ -1262,7 +1274,7 @@ bool RISCVKeysomExpand::expandLB(MachineBasicBlock &OrigBB,
   }
 
   MachineInstr &MI = *MBBI;
-  assert(MI.getNumOperands() == 3 && "Expected LB to have 3 operands");
+  assert(MI.getNumOperands() == 3 && "Expected LB/LBU to have 3 operands");
   Register Rs2 = MI.getOperand(0).getReg(); // destination is always a register.
 
   MachineFunction *const Function = OrigBB.getParent();
@@ -1361,7 +1373,7 @@ bool RISCVKeysomExpand::expandSH(MachineBasicBlock &OrigBB,
   bool const WasKill = setKill(Op1, false);
 
   auto [MOOffset, MOSize, MOFlags] = getStoreMemOperands(MI);
-  MOSize = MOSize.unionWith(LocationSize::precise(2));
+  MOSize = MOSize.unionWith(LocationSize::precise(4));
   MachineInstr *SWInstr = nullptr;
 
   if (StoreAligned != AlignType::unknown) {
@@ -1393,6 +1405,81 @@ bool RISCVKeysomExpand::expandSH(MachineBasicBlock &OrigBB,
   }
   updateMemOperands(SWInstr, MOOffset, MOSize, memFlagsForStore(MOFlags));
   setKill(Op1, WasKill); // Restore the original kill state.
+
+  MI.eraseFromParent();
+  return true;
+}
+
+bool RISCVKeysomExpand::expandLH(MachineBasicBlock &OrigBB,
+                                 MachineBasicBlock::iterator MBBI,
+                                 MachineBasicBlock::iterator &NextMBBI,
+                                 bool IsLHU) {
+  if (IsLHU && !STI_->hasVendorXKeysomNoLhu()) {
+    return false;
+  }
+  if (!IsLHU && !STI_->hasVendorXKeysomNoLh()) {
+    return false;
+  }
+
+  MachineInstr &MI = *MBBI;
+  assert(MI.getNumOperands() == 3 && "Expected LH/LHU to have 3 operands");
+  Register Rs2 = MI.getOperand(0).getReg(); // destination is always a register.
+
+  MachineFunction *const Function = OrigBB.getParent();
+  MachineRegisterInfo &MRI = Function->getRegInfo();
+  InstructionHelper Helper{
+      MRI, MRI.getRegClass(Rs2), OrigBB, MBBI, MI.getDebugLoc(), STI_, TII_};
+
+  AlignType LoadAligned = AlignType::unknown; // getAlignmentKind(MI,
+                                              // *Function);
+
+  auto &Op1 = MI.getOperand(1);
+  auto &Op2 = MI.getOperand(2);
+
+  auto [MOOffset, MOSize, MOFlags] = getStoreMemOperands(MI);
+  MOSize = MOSize.unionWith(LocationSize::precise(4));
+
+  Register Result{};
+  if (LoadAligned == AlignType::odd) {
+    assert(false); // TODO
+  } else if (LoadAligned == AlignType::even) {
+    assert(false); // TODO
+  } else {
+    Register Addr = Helper.rvAdd(Op1, Op2);
+    Register AlignedAddr = Helper.rvAndi(Addr, ~0b11);
+    Register LWValue = MRI.createVirtualRegister(MRI.getRegClass(Rs2));
+    MachineInstr *const LWInstr =
+        BuildMI(OrigBB, MBBI, MI.getDebugLoc(), TII_->get(RISCV::LW), LWValue)
+            .addReg(AlignedAddr)
+            .addImm(0)
+            .getInstr();
+    updateMemOperands(LWInstr, MOOffset, MOSize, memFlagsForLoad(MOFlags));
+
+    Register Shift0 = Helper.rvSub(Addr, AlignedAddr); // shift is 0 or 2
+    Register Shift = Helper.rvSlli(Shift0, 3);         // Shift *= 8
+
+    Register LWValue2 =
+        Helper.rvSrl(LWValue, Shift); // LWValue2 = LWValue >> Shift
+
+    Result = LWValue2;
+  }
+
+  if (IsLHU) {
+    // Zero extend
+    if (LoadAligned == AlignType::odd) {
+      assert(false); // TODO
+    } else {
+      Register MaxShortUpper = Helper.rvLui(16);
+      Register MaxShort = Helper.rvAddi(MaxShortUpper, -1); // MaxShort = 0xFFFF
+
+      Helper.rvAnd(Rs2, Result, MaxShort);
+    }
+  } else {
+    // Now do the sign extension.
+    Register ShiftToTop = Helper.rvSlli(Result, 16); // move bit 15 to bit 31
+    Helper.rvSrai(Rs2, ShiftToTop,
+                  16); // arithmetic shift right fills with sign
+  }
 
   MI.eraseFromParent();
   return true;

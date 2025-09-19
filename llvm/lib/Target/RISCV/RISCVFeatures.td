@@ -1317,6 +1317,12 @@ defm Lb : KeysomPredicates<FeatureVendorXKeysomNoLb>;
 def FeatureVendorXKeysomNoLbu : KeysomExtension<"Lbu">;
 defm Lbu : KeysomPredicates<FeatureVendorXKeysomNoLbu>;
 
+def FeatureVendorXKeysomNoLh : KeysomExtension<"Lh">;
+defm Lh : KeysomPredicates<FeatureVendorXKeysomNoLh>;
+
+def FeatureVendorXKeysomNoLhu : KeysomExtension<"Lhu">;
+defm Lhu : KeysomPredicates<FeatureVendorXKeysomNoLhu>;
+
 def FeatureVendorXKeysomNoSb : KeysomExtension<"Sb">;
 defm Sb : KeysomPredicates<FeatureVendorXKeysomNoSb>;
 
