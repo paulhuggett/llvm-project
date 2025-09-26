@@ -22,12 +22,14 @@ define void @unaligned_global(i16 signext %v) {
 ; NOSH-LABEL: unaligned_global:
 ; NOSH:       # %bb.0: # %entry
 ; NOSH-NEXT:    lui a1, %hi(global2)
-; NOSH-NEXT:    addi a2, zero, 255
+; NOSH-NEXT:    lui a2, 16
+; NOSH-NEXT:    addi a2, a2, -1
 ; NOSH-NEXT:    addi a1, a1, %lo(global2)
+; NOSH-NEXT:    and a0, a2, a0
 ; NOSH-NEXT:    andi a3, a1, -4
 ; NOSH-NEXT:    lw a4, 0(a3)
-; NOSH-NEXT:    sub a1, a1, a3
-; NOSH-NEXT:    slli a1, a1, 3
+; NOSH-NEXT:    sltu a1, a3, a1
+; NOSH-NEXT:    slli a1, a1, 4
 ; NOSH-NEXT:    sll a2, a2, a1
 ; NOSH-NEXT:    xori a2, a2, -1
 ; NOSH-NEXT:    sll a0, a0, a1
@@ -50,12 +52,14 @@ define void @global_even(i16 signext %v) {
 ; NOSH-LABEL: global_even:
 ; NOSH:       # %bb.0: # %entry
 ; NOSH-NEXT:    lui a1, %hi(global+4)
-; NOSH-NEXT:    addi a2, zero, 255
+; NOSH-NEXT:    lui a2, 16
+; NOSH-NEXT:    addi a2, a2, -1
 ; NOSH-NEXT:    addi a1, a1, %lo(global+4)
+; NOSH-NEXT:    and a0, a2, a0
 ; NOSH-NEXT:    andi a3, a1, -4
 ; NOSH-NEXT:    lw a4, 0(a3)
-; NOSH-NEXT:    sub a1, a1, a3
-; NOSH-NEXT:    slli a1, a1, 3
+; NOSH-NEXT:    sltu a1, a3, a1
+; NOSH-NEXT:    slli a1, a1, 4
 ; NOSH-NEXT:    sll a2, a2, a1
 ; NOSH-NEXT:    xori a2, a2, -1
 ; NOSH-NEXT:    sll a0, a0, a1
@@ -78,12 +82,14 @@ define void @global_odd(i16 signext %v) {
 ; NOSH-LABEL: global_odd:
 ; NOSH:       # %bb.0: # %entry
 ; NOSH-NEXT:    lui a1, %hi(global+6)
-; NOSH-NEXT:    addi a2, zero, 255
+; NOSH-NEXT:    lui a2, 16
+; NOSH-NEXT:    addi a2, a2, -1
 ; NOSH-NEXT:    addi a1, a1, %lo(global+6)
+; NOSH-NEXT:    and a0, a2, a0
 ; NOSH-NEXT:    andi a3, a1, -4
 ; NOSH-NEXT:    lw a4, 0(a3)
-; NOSH-NEXT:    sub a1, a1, a3
-; NOSH-NEXT:    slli a1, a1, 3
+; NOSH-NEXT:    sltu a1, a3, a1
+; NOSH-NEXT:    slli a1, a1, 4
 ; NOSH-NEXT:    sll a2, a2, a1
 ; NOSH-NEXT:    xori a2, a2, -1
 ; NOSH-NEXT:    sll a0, a0, a1
@@ -110,17 +116,19 @@ define void @stack_even(i16 signext %v) {
 ; NOSH:       # %bb.0: # %entry
 ; NOSH-NEXT:    addi sp, sp, -16
 ; NOSH-NEXT:    .cfi_def_cfa_offset 16
-; NOSH-NEXT:    addi a1, sp, 12
-; NOSH-NEXT:    addi a2, zero, 255
-; NOSH-NEXT:    andi a3, a1, -4
+; NOSH-NEXT:    lui a1, 16
+; NOSH-NEXT:    addi a2, sp, 12
+; NOSH-NEXT:    addi a1, a1, -1
+; NOSH-NEXT:    andi a3, a2, -4
+; NOSH-NEXT:    and a0, a1, a0
 ; NOSH-NEXT:    lw a4, 0(a3)
-; NOSH-NEXT:    sub a1, a1, a3
-; NOSH-NEXT:    slli a1, a1, 3
-; NOSH-NEXT:    sll a2, a2, a1
-; NOSH-NEXT:    xori a2, a2, -1
-; NOSH-NEXT:    sll a0, a0, a1
-; NOSH-NEXT:    and a2, a4, a2
-; NOSH-NEXT:    or a0, a2, a0
+; NOSH-NEXT:    sltu a2, a3, a2
+; NOSH-NEXT:    slli a2, a2, 4
+; NOSH-NEXT:    sll a1, a1, a2
+; NOSH-NEXT:    xori a1, a1, -1
+; NOSH-NEXT:    sll a0, a0, a2
+; NOSH-NEXT:    and a1, a4, a1
+; NOSH-NEXT:    or a0, a1, a0
 ; NOSH-NEXT:    sw a0, 0(a3)
 ; NOSH-NEXT:    addi sp, sp, 16
 ; NOSH-NEXT:    .cfi_def_cfa_offset 0
@@ -145,17 +153,19 @@ define void @stack_odd(i16 signext %v) {
 ; NOSH:       # %bb.0: # %entry
 ; NOSH-NEXT:    addi sp, sp, -16
 ; NOSH-NEXT:    .cfi_def_cfa_offset 16
-; NOSH-NEXT:    addi a1, sp, 14
-; NOSH-NEXT:    addi a2, zero, 255
-; NOSH-NEXT:    andi a3, a1, -4
+; NOSH-NEXT:    lui a1, 16
+; NOSH-NEXT:    addi a2, sp, 14
+; NOSH-NEXT:    addi a1, a1, -1
+; NOSH-NEXT:    andi a3, a2, -4
+; NOSH-NEXT:    and a0, a1, a0
 ; NOSH-NEXT:    lw a4, 0(a3)
-; NOSH-NEXT:    sub a1, a1, a3
-; NOSH-NEXT:    slli a1, a1, 3
-; NOSH-NEXT:    sll a2, a2, a1
-; NOSH-NEXT:    xori a2, a2, -1
-; NOSH-NEXT:    sll a0, a0, a1
-; NOSH-NEXT:    and a2, a4, a2
-; NOSH-NEXT:    or a0, a2, a0
+; NOSH-NEXT:    sltu a2, a3, a2
+; NOSH-NEXT:    slli a2, a2, 4
+; NOSH-NEXT:    sll a1, a1, a2
+; NOSH-NEXT:    xori a1, a1, -1
+; NOSH-NEXT:    sll a0, a0, a2
+; NOSH-NEXT:    and a1, a4, a1
+; NOSH-NEXT:    or a0, a1, a0
 ; NOSH-NEXT:    sw a0, 0(a3)
 ; NOSH-NEXT:    addi sp, sp, 16
 ; NOSH-NEXT:    .cfi_def_cfa_offset 0
@@ -174,11 +184,13 @@ define void @no_align(ptr %ptr, i16 signext %v) {
 ;
 ; NOSH-LABEL: no_align:
 ; NOSH:       # %bb.0: # %entry
-; NOSH-NEXT:    addi a2, zero, 255
+; NOSH-NEXT:    lui a2, 16
+; NOSH-NEXT:    addi a2, a2, -1
 ; NOSH-NEXT:    andi a3, a0, -4
+; NOSH-NEXT:    and a1, a2, a1
 ; NOSH-NEXT:    lw a4, 0(a3)
-; NOSH-NEXT:    sub a0, a0, a3
-; NOSH-NEXT:    slli a0, a0, 3
+; NOSH-NEXT:    sltu a0, a3, a0
+; NOSH-NEXT:    slli a0, a0, 4
 ; NOSH-NEXT:    sll a2, a2, a0
 ; NOSH-NEXT:    xori a2, a2, -1
 ; NOSH-NEXT:    sll a0, a1, a0
@@ -199,12 +211,14 @@ define void @ptr_even(ptr %ptr, i16 signext %v) {
 ;
 ; NOSH-LABEL: ptr_even:
 ; NOSH:       # %bb.0: # %entry
+; NOSH-NEXT:    lui a2, 16
 ; NOSH-NEXT:    addi a0, a0, 4
-; NOSH-NEXT:    addi a2, zero, 255
+; NOSH-NEXT:    addi a2, a2, -1
 ; NOSH-NEXT:    andi a3, a0, -4
+; NOSH-NEXT:    and a1, a2, a1
 ; NOSH-NEXT:    lw a4, 0(a3)
-; NOSH-NEXT:    sub a0, a0, a3
-; NOSH-NEXT:    slli a0, a0, 3
+; NOSH-NEXT:    sltu a0, a3, a0
+; NOSH-NEXT:    slli a0, a0, 4
 ; NOSH-NEXT:    sll a2, a2, a0
 ; NOSH-NEXT:    xori a2, a2, -1
 ; NOSH-NEXT:    sll a0, a1, a0
@@ -226,12 +240,14 @@ define void @ptr_odd(ptr %ptr, i16 signext %v) {
 ;
 ; NOSH-LABEL: ptr_odd:
 ; NOSH:       # %bb.0: # %entry
+; NOSH-NEXT:    lui a2, 16
 ; NOSH-NEXT:    addi a0, a0, 6
-; NOSH-NEXT:    addi a2, zero, 255
+; NOSH-NEXT:    addi a2, a2, -1
 ; NOSH-NEXT:    andi a3, a0, -4
+; NOSH-NEXT:    and a1, a2, a1
 ; NOSH-NEXT:    lw a4, 0(a3)
-; NOSH-NEXT:    sub a0, a0, a3
-; NOSH-NEXT:    slli a0, a0, 3
+; NOSH-NEXT:    sltu a0, a3, a0
+; NOSH-NEXT:    slli a0, a0, 4
 ; NOSH-NEXT:    sll a2, a2, a0
 ; NOSH-NEXT:    xori a2, a2, -1
 ; NOSH-NEXT:    sll a0, a1, a0

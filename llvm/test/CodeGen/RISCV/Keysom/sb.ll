@@ -22,6 +22,7 @@ define void @unaligned_global(i8 zeroext %v) {
 ; NOSB-LABEL: unaligned_global:
 ; NOSB:       # %bb.0: # %entry
 ; NOSB-NEXT:    lui a1, %hi(global2)
+; NOSB-NEXT:    andi a0, a0, 255
 ; NOSB-NEXT:    addi a2, zero, 255
 ; NOSB-NEXT:    addi a1, a1, %lo(global2)
 ; NOSB-NEXT:    andi a3, a1, -2
@@ -51,6 +52,7 @@ define void @global_even(i8 zeroext %v) {
 ; NOSB:       # %bb.0: # %entry
 ; NOSB-NEXT:    lui a1, %hi(global+4)
 ; NOSB-NEXT:    lh a2, %lo(global+4)(a1)
+; NOSB-NEXT:    andi a0, a0, 255
 ; NOSB-NEXT:    andi a2, a2, -256
 ; NOSB-NEXT:    or a0, a2, a0
 ; NOSB-NEXT:    sh a0, %lo(global+4)(a1)
@@ -71,6 +73,7 @@ define void @global_odd(i8 zeroext %v) {
 ; NOSB:       # %bb.0: # %entry
 ; NOSB-NEXT:    lui a1, %hi(global+5)
 ; NOSB-NEXT:    lh a2, %lo(global+4)(a1)
+; NOSB-NEXT:    andi a0, a0, 255
 ; NOSB-NEXT:    andi a2, a2, 255
 ; NOSB-NEXT:    slli a0, a0, 8
 ; NOSB-NEXT:    or a0, a2, a0
@@ -96,6 +99,7 @@ define void @stack_even(i8 zeroext %v) {
 ; NOSB-NEXT:    addi sp, sp, -16
 ; NOSB-NEXT:    .cfi_def_cfa_offset 16
 ; NOSB-NEXT:    lh a1, 12(sp)
+; NOSB-NEXT:    andi a0, a0, 255
 ; NOSB-NEXT:    andi a1, a1, -256
 ; NOSB-NEXT:    or a0, a1, a0
 ; NOSB-NEXT:    sh a0, 12(sp)
@@ -122,6 +126,7 @@ define void @stack_odd(i8 zeroext %v) {
 ; NOSB:       # %bb.0: # %entry
 ; NOSB-NEXT:    addi sp, sp, -16
 ; NOSB-NEXT:    .cfi_def_cfa_offset 16
+; NOSB-NEXT:    andi a0, a0, 255
 ; NOSB-NEXT:    addi a1, sp, 15
 ; NOSB-NEXT:    addi a2, zero, 255
 ; NOSB-NEXT:    andi a3, a1, -2
@@ -151,6 +156,7 @@ define void @no_align(ptr %ptr, i8 zeroext %v) {
 ;
 ; NOSB-LABEL: no_align:
 ; NOSB:       # %bb.0: # %entry
+; NOSB-NEXT:    andi a1, a1, 255
 ; NOSB-NEXT:    addi a2, zero, 255
 ; NOSB-NEXT:    andi a3, a0, -2
 ; NOSB-NEXT:    lh a4, 0(a3)
@@ -177,6 +183,7 @@ define void @ptr_even(ptr writeonly captures(none) initializes((4, 5)) %ptr, i8 
 ; NOSB-LABEL: ptr_even:
 ; NOSB:       # %bb.0: # %entry
 ; NOSB-NEXT:    lh a2, 4(a0)
+; NOSB-NEXT:    andi a1, a1, 255
 ; NOSB-NEXT:    andi a2, a2, -256
 ; NOSB-NEXT:    or a1, a2, a1
 ; NOSB-NEXT:    sh a1, 4(a0)
@@ -195,6 +202,7 @@ define void @ptr_odd(ptr writeonly captures(none) initializes((5, 6)) %ptr, i8 z
 ;
 ; NOSB-LABEL: ptr_odd:
 ; NOSB:       # %bb.0: # %entry
+; NOSB-NEXT:    andi a1, a1, 255
 ; NOSB-NEXT:    addi a0, a0, 5
 ; NOSB-NEXT:    addi a2, zero, 255
 ; NOSB-NEXT:    andi a3, a0, -2
