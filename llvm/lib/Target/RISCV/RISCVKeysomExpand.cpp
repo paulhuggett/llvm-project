@@ -44,11 +44,11 @@ public:
     return Rd;
   }
   [[nodiscard]] Register rvAddi(Register Rs1, int64_t Immediate) {
-    assert(Immediate < (1 << 11) && "immediate value is too large!");
+    check12BitSextImmediate(Immediate);
     return this->buildImmediate(true, RISCV::ADDI, RISCV::ADDI, Rs1, Immediate);
   }
   void rvAddi(Register Rd, Register Rs1, int64_t Immediate) {
-    assert(Immediate < (1 << 11) && "immediate value is too large!");
+    check12BitSextImmediate(Immediate);
     this->buildImmediate(true, RISCV::ADDI, RISCV::ADDI, Rd, Rs1, Immediate);
   }
 
@@ -60,13 +60,13 @@ public:
   }
 
   [[nodiscard]] Register rvXori(Register Rs1, int64_t Immediate) {
-    assert(Immediate < (1 << 11) && "immediate value is too large!");
+    check12BitSextImmediate(Immediate);
     return this->buildImmediate(!STI_->hasVendorXKeysomNoXori(), RISCV::XORI,
                                 RISCV::XOR, Rs1, Immediate);
   }
   [[nodiscard]] Register rvNot(Register Rs1) { return this->rvXori(Rs1, -1); }
   void rvXori(Register Rd, Register Rs1, int64_t Immediate) {
-    assert(Immediate < (1 << 11) && "immediate value is too large!");
+    check12BitSextImmediate(Immediate);
     this->buildImmediate(!STI_->hasVendorXKeysomNoXori(), RISCV::XORI,
                          RISCV::XOR, Rd, Rs1, Immediate);
   }
@@ -82,12 +82,12 @@ public:
   }
 
   [[nodiscard]] Register rvAndi(Register Rs1, int64_t Immediate) {
-    assert(Immediate < (1 << 11) && "immediate value is too large!");
+    check12BitSextImmediate(Immediate);
     return this->buildImmediate(!STI_->hasVendorXKeysomNoAndi(), RISCV::ANDI,
                                 RISCV::AND, Rs1, Immediate);
   }
   void rvAndi(Register Rd, Register Rs1, int64_t Immediate) {
-    assert(Immediate < (1 << 11) && "immediate value is too large!");
+    check12BitSextImmediate(Immediate);
     return this->buildImmediate(!STI_->hasVendorXKeysomNoAndi(), RISCV::ANDI,
                                 RISCV::AND, Rd, Rs1, Immediate);
   }
@@ -124,12 +124,12 @@ public:
     return this->buildTwoReg(RISCV::OR, Rs1, Rs2);
   }
   [[nodiscard]] Register rvOri(Register Rs1, int64_t Immediate) {
-    assert(Immediate < (1 << 11) && "immediate value is too large!");
+    check12BitSextImmediate(Immediate);
     return this->buildImmediate(!STI_->hasVendorXKeysomNoOri(), RISCV::ORI,
                                 RISCV::OR, Rs1, Immediate);
   }
   void rvOri(Register Rd, Register Rs1, int64_t Immediate) {
-    assert(Immediate < (1 << 11) && "immediate value is too large!");
+    check12BitSextImmediate(Immediate);
     return this->buildImmediate(!STI_->hasVendorXKeysomNoOri(), RISCV::ORI,
                                 RISCV::OR, Rd, Rs1, Immediate);
   }
@@ -192,6 +192,11 @@ public:
   }
 
 private:
+  constexpr void check12BitSextImmediate(int64_t Immediate) {
+    (void)Immediate;
+    assert(Immediate < (1U << 11) ||
+           Immediate >= -(1 << 11) && "12-bit immediate value out of range!");
+  }
   [[nodiscard]] Register buildImmediate(bool HasInst, int ImmInstr,
                                         int RegInstr, Register Rs1,
                                         int64_t Immediate) {
@@ -301,6 +306,12 @@ bool RISCVKeysomExpand::runOnMachineFunction(MachineFunction &MF) {
   bool Modified = false;
   for (auto &MBB : MF)
     Modified |= expandMBB(MBB);
+
+#if 0 // Restore this check if there's doubt that legal code is produced.
+  if (Modified) {
+    verifyMachineFunction("keysom expand", MF);
+  }
+#endif
 
   return Modified;
 }
@@ -548,15 +559,16 @@ bool RISCVKeysomExpand::expandSRLI(MachineBasicBlock &OrigBB,
   auto ShiftA = Helper.rvSrai(Rs1, ShAmt);
   // Now mask out the effect of the sign extension that SRA performs.
   const auto Mask = (1U << (STI_->getXLen() - ShAmt)) - 1U;
-  if (Mask >= 1 << 12) {
+  // <2^11 is used here (the andi immediate field is 12 bits) so that the
+  // immediate value remains positive.
+  if (Mask < 1U << 11) {
+    Helper.rvAndi(Rd, ShiftA, Mask);
+  } else {
     Register UpperImm = MRI.createVirtualRegister(MRI.getRegClass(Rd));
-    // TODO: in theory, LUI is an instruction that can be disabled!
     BuildMI(OrigBB, MBBI, DL, TII_->get(RISCV::LUI), UpperImm)
         .addImm((Mask >> 12) + 1U);
     auto FullMask = Helper.rvAddi(UpperImm, -1);
     Helper.rvAnd(Rd, ShiftA, FullMask);
-  } else {
-    Helper.rvAndi(Rd, ShiftA, Mask);
   }
   MI.eraseFromParent();
   return true;
@@ -1007,39 +1019,49 @@ bool RISCVKeysomExpand::expandBranchGreaterEqual(
   MachineBasicBlock *TrueSucc = nullptr;
   MachineBasicBlock *FalseSucc = nullptr;
   SmallVector<MachineOperand, 3> Cond;
-  if (!TII_->analyzeBranch(MBB, /*out*/ TrueSucc, /*out*/ FalseSucc,
-                           /*out*/ Cond, /*AllowModify=*/false)) {
-    MachineBranchProbabilityInfo &MBPI =
-        getAnalysis<MachineBranchProbabilityInfoWrapperPass>().getMBPI();
-    auto TrueProb = MBPI.getEdgeProbability(&MBB, TrueSucc);
-    auto FalseProb = FalseSucc != nullptr
-                         ? MBPI.getEdgeProbability(&MBB, FalseSucc)
-                         : BranchProbability::getUnknown();
+  if (TII_->analyzeBranch(MBB, /*out*/ TrueSucc, /*out*/ FalseSucc,
+                          /*out*/ Cond, /*AllowModify=*/false)) {
+    assert(false);
+    return false;
+  }
+  if (FalseSucc == nullptr && &MBB != &MBB.getParent()->back()) {
+    FalseSucc = &*std::next(MBB.getIterator()); // Use the layout successor
+  }
+  assert(TrueSucc != nullptr);
 
-    assert(Cond.size() == 3 && "Invalid branch condition!");
-    assert(Cond[0].getImm() == RISCV::BGE || Cond[0].getImm() == RISCV::BGEU);
+  MachineBranchProbabilityInfo &MBPI =
+      getAnalysis<MachineBranchProbabilityInfoWrapperPass>().getMBPI();
 
-    TII_->removeBranch(MBB);
+  auto TrueProb = MBPI.getEdgeProbability(&MBB, TrueSucc);
+  auto FalseProb = FalseSucc != nullptr
+                       ? MBPI.getEdgeProbability(&MBB, FalseSucc)
+                       : BranchProbability::getUnknown();
 
-    Cond[0].setImm(Cond[0].getImm() == RISCV::BGE ? RISCV::BLT : RISCV::BLTU);
-    std::swap(Cond[1], Cond[2]);
-    TII_->insertBranch(MBB, /*true bb=*/TrueSucc, /*false bb=*/FalseSucc, Cond,
-                       MI.getDebugLoc());
+  assert(Cond.size() == 3 && "Invalid branch condition!");
+  assert(Cond[0].getImm() == RISCV::BGE || Cond[0].getImm() == RISCV::BGEU);
 
-    if (MBB.hasSuccessorProbabilities()) {
-      for (auto It = MBB.succ_begin(), End = MBB.succ_end(); It != End; ++It) {
-        MachineBasicBlock *const Succ = *It;
-        if (Succ == TrueSucc && FalseProb != BranchProbability::getUnknown()) {
-          MBB.setSuccProbability(It, FalseProb);
-        } else if (Succ == FalseSucc &&
-                   TrueProb != BranchProbability::getUnknown()) {
-          MBB.setSuccProbability(It, TrueProb);
-        }
+  bool const Replaced = !TII_->reverseBranchCondition(Cond);
+  (void)Replaced;
+  assert(Replaced);
+
+  TII_->removeBranch(MBB);
+  std::swap(TrueSucc, FalseSucc);
+  TII_->insertBranch(MBB, /*true bb=*/TrueSucc, /*false bb=*/FalseSucc, Cond,
+                     MI.getDebugLoc());
+
+  if (MBB.hasSuccessorProbabilities()) {
+    for (auto It = MBB.succ_begin(), End = MBB.succ_end(); It != End; ++It) {
+      MachineBasicBlock *const Succ = *It;
+      if (Succ == TrueSucc && FalseProb != BranchProbability::getUnknown()) {
+        MBB.setSuccProbability(It, FalseProb);
+      } else if (Succ == FalseSucc &&
+                 TrueProb != BranchProbability::getUnknown()) {
+        MBB.setSuccProbability(It, TrueProb);
+      } else {
+        assert(0);
       }
     }
   }
-
-  NextMBBI = MBB.end();
   return true;
 }
 
@@ -1184,6 +1206,8 @@ bool RISCVKeysomExpand::expandSB(MachineBasicBlock &OrigBB,
   InstructionHelper Helper{
       MRI, DestRegisterClass, OrigBB, MBBI, MI.getDebugLoc(), STI_, TII_};
 
+  // (TODO: the andi rs2b,rs2,255 instruction is not necessary here since 'sh'
+  // will ignore bits in the upper half of the word.)
   Register Rs2b = Helper.rvAndi(Rs2, 0xFF);
 
   AlignType StoreAligned = getAlignmentKind(MI, *Function);

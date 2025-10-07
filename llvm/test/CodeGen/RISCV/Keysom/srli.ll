@@ -99,6 +99,124 @@ entry:
   ret i32 %shr
 }
 
+define i32 @g19(i32 %x) nounwind {
+; ALL-LABEL: g19:
+; ALL:       # %bb.0: # %entry
+; ALL-NEXT:    srli a0, a0, 19
+; ALL-NEXT:    jalr zero, 0(ra)
+;
+; NOSRLI-LABEL: g19:
+; NOSRLI:       # %bb.0: # %entry
+; NOSRLI-NEXT:    addi a1, zero, 19
+; NOSRLI-NEXT:    srl a0, a0, a1
+; NOSRLI-NEXT:    jalr zero, 0(ra)
+;
+; NOSRL-LABEL: g19:
+; NOSRL:       # %bb.0: # %entry
+; NOSRL-NEXT:    srai a0, a0, 19
+; NOSRL-NEXT:    lui a1, 2
+; NOSRL-NEXT:    addi a1, a1, -1
+; NOSRL-NEXT:    and a0, a0, a1
+; NOSRL-NEXT:    jalr zero, 0(ra)
+;
+; NOSRL-SRA-LABEL: g19:
+; NOSRL-SRA:       # %bb.0: # %entry
+; NOSRL-SRA-NEXT:    addi a1, zero, 19
+; NOSRL-SRA-NEXT:    sra a0, a0, a1
+; NOSRL-SRA-NEXT:    lui a1, 2
+; NOSRL-SRA-NEXT:    addi a1, a1, -1
+; NOSRL-SRA-NEXT:    and a0, a0, a1
+; NOSRL-SRA-NEXT:    jalr zero, 0(ra)
+;
+; NOSRL-SRA-SLLI-LABEL: g19:
+; NOSRL-SRA-SLLI:       # %bb.0: # %entry
+; NOSRL-SRA-SLLI-NEXT:    addi a1, zero, 19
+; NOSRL-SRA-SLLI-NEXT:    sra a0, a0, a1
+; NOSRL-SRA-SLLI-NEXT:    lui a1, 2
+; NOSRL-SRA-SLLI-NEXT:    addi a1, a1, -1
+; NOSRL-SRA-SLLI-NEXT:    and a0, a0, a1
+; NOSRL-SRA-SLLI-NEXT:    jalr zero, 0(ra)
+entry:
+  %shr = lshr i32 %x, 19
+  ret i32 %shr
+}
+define i32 @g20(i32 %x) nounwind {
+; ALL-LABEL: g20:
+; ALL:       # %bb.0: # %entry
+; ALL-NEXT:    srli a0, a0, 20
+; ALL-NEXT:    jalr zero, 0(ra)
+;
+; NOSRLI-LABEL: g20:
+; NOSRLI:       # %bb.0: # %entry
+; NOSRLI-NEXT:    addi a1, zero, 20
+; NOSRLI-NEXT:    srl a0, a0, a1
+; NOSRLI-NEXT:    jalr zero, 0(ra)
+;
+; NOSRL-LABEL: g20:
+; NOSRL:       # %bb.0: # %entry
+; NOSRL-NEXT:    srai a0, a0, 20
+; NOSRL-NEXT:    lui a1, 1
+; NOSRL-NEXT:    addi a1, a1, -1
+; NOSRL-NEXT:    and a0, a0, a1
+; NOSRL-NEXT:    jalr zero, 0(ra)
+;
+; NOSRL-SRA-LABEL: g20:
+; NOSRL-SRA:       # %bb.0: # %entry
+; NOSRL-SRA-NEXT:    addi a1, zero, 20
+; NOSRL-SRA-NEXT:    sra a0, a0, a1
+; NOSRL-SRA-NEXT:    lui a1, 1
+; NOSRL-SRA-NEXT:    addi a1, a1, -1
+; NOSRL-SRA-NEXT:    and a0, a0, a1
+; NOSRL-SRA-NEXT:    jalr zero, 0(ra)
+;
+; NOSRL-SRA-SLLI-LABEL: g20:
+; NOSRL-SRA-SLLI:       # %bb.0: # %entry
+; NOSRL-SRA-SLLI-NEXT:    addi a1, zero, 20
+; NOSRL-SRA-SLLI-NEXT:    sra a0, a0, a1
+; NOSRL-SRA-SLLI-NEXT:    lui a1, 1
+; NOSRL-SRA-SLLI-NEXT:    addi a1, a1, -1
+; NOSRL-SRA-SLLI-NEXT:    and a0, a0, a1
+; NOSRL-SRA-SLLI-NEXT:    jalr zero, 0(ra)
+entry:
+  %shr = lshr i32 %x, 20
+  ret i32 %shr
+}
+define i32 @g21(i32 %x) nounwind {
+; ALL-LABEL: g21:
+; ALL:       # %bb.0: # %entry
+; ALL-NEXT:    srli a0, a0, 21
+; ALL-NEXT:    jalr zero, 0(ra)
+;
+; NOSRLI-LABEL: g21:
+; NOSRLI:       # %bb.0: # %entry
+; NOSRLI-NEXT:    addi a1, zero, 21
+; NOSRLI-NEXT:    srl a0, a0, a1
+; NOSRLI-NEXT:    jalr zero, 0(ra)
+;
+; NOSRL-LABEL: g21:
+; NOSRL:       # %bb.0: # %entry
+; NOSRL-NEXT:    srai a0, a0, 21
+; NOSRL-NEXT:    andi a0, a0, 2047
+; NOSRL-NEXT:    jalr zero, 0(ra)
+;
+; NOSRL-SRA-LABEL: g21:
+; NOSRL-SRA:       # %bb.0: # %entry
+; NOSRL-SRA-NEXT:    addi a1, zero, 21
+; NOSRL-SRA-NEXT:    sra a0, a0, a1
+; NOSRL-SRA-NEXT:    andi a0, a0, 2047
+; NOSRL-SRA-NEXT:    jalr zero, 0(ra)
+;
+; NOSRL-SRA-SLLI-LABEL: g21:
+; NOSRL-SRA-SLLI:       # %bb.0: # %entry
+; NOSRL-SRA-SLLI-NEXT:    addi a1, zero, 21
+; NOSRL-SRA-SLLI-NEXT:    sra a0, a0, a1
+; NOSRL-SRA-SLLI-NEXT:    andi a0, a0, 2047
+; NOSRL-SRA-SLLI-NEXT:    jalr zero, 0(ra)
+entry:
+  %shr = lshr i32 %x, 21
+  ret i32 %shr
+}
+
 define i32 @h(i32 %x, i32 %y) nounwind {
 ; ALL-LABEL: h:
 ; ALL:       # %bb.0: # %entry

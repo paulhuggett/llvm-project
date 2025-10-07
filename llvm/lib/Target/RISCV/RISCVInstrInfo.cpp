@@ -81,8 +81,8 @@ namespace llvm::RISCV {
 } // end namespace llvm::RISCV
 
 // *PBH*: Begin added
-static constexpr unsigned load_signed(const unsigned Width,
-                                      const RISCVSubtarget &ST) {
+static constexpr unsigned loadSigned(const unsigned Width,
+                                     const RISCVSubtarget &ST) {
   switch (Width) {
   case 1:
     if (!ST.hasVendorXKeysomNoLb()) {
@@ -104,8 +104,8 @@ static constexpr unsigned load_signed(const unsigned Width,
   }
 }
 
-static constexpr unsigned load_unsigned(const unsigned Width,
-                                        const RISCVSubtarget &ST) {
+static constexpr unsigned loadUnsigned(const unsigned Width,
+                                       const RISCVSubtarget &ST) {
   assert(Width == 1 || Width == 2 || Width == 4 || Width == 8);
   switch (Width) {
   case 1:
@@ -119,7 +119,7 @@ static constexpr unsigned load_unsigned(const unsigned Width,
     }
     [[fallthrough]];
   case 4:
-    return RISCV::LWU;
+    return ST.is64Bit() ? RISCV::LWU : RISCV::LW;
   case 8:
     return RISCV::LD;
   default:
@@ -217,7 +217,7 @@ Register RISCVInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
     break;
   case RISCV::LH:
   case RISCV::LHU:
-    // *PBH*: Use wider types if haflword load  or store is disabled.
+    // *PBH*: Use wider types if halfword load or store is disabled.
     MemBytes = TypeSize::getFixed(2);
     if (anyHalfwordMemDisabled(STI)) {
       MemBytes = TypeSize::getFixed(4);
@@ -916,19 +916,19 @@ std::optional<unsigned> getFoldedOpcode(MachineFunction &MF, MachineInstr &MI,
   switch (MI.getOpcode()) {
   default:
     if (RISCVInstrInfo::isSEXT_W(MI))
-      return load_signed(4, ST);
+      return loadSigned(4, ST);
     if (RISCVInstrInfo::isZEXT_W(MI))
-      return load_unsigned(4, ST);
+      return loadUnsigned(4, ST);
     if (RISCVInstrInfo::isZEXT_B(MI))
-      return load_unsigned(1, ST);
+      return loadUnsigned(1, ST);
     break;
   case RISCV::SEXT_H:
-    return load_signed(2, ST);
+    return loadSigned(2, ST);
   case RISCV::SEXT_B:
-    return load_signed(1, ST);
+    return loadSigned(1, ST);
   case RISCV::ZEXT_H_RV32:
   case RISCV::ZEXT_H_RV64:
-    return load_unsigned(2, ST);
+    return loadUnsigned(2, ST);
   }
 
   switch (RISCV::getRVVMCOpcode(MI.getOpcode())) {
@@ -941,13 +941,13 @@ std::optional<unsigned> getFoldedOpcode(MachineFunction &MF, MachineInstr &MI,
       return std::nullopt;
     switch (Log2SEW) {
     case 3:
-      return load_signed(1, ST); // was: RISCV::LB
+      return loadSigned(1, ST); // was: RISCV::LB
     case 4:
-      return load_signed(2, ST); // was: RISCV::LH
+      return loadSigned(2, ST); // was: RISCV::LH
     case 5:
-      return load_signed(4, ST); // was: RISCV::LW
+      return loadSigned(4, ST); // was: RISCV::LW
     case 6:
-      return load_signed(8, ST); // was: RISCV::LD
+      return loadSigned(8, ST); // was: RISCV::LD
     default:
       llvm_unreachable("Unexpected SEW");
     }

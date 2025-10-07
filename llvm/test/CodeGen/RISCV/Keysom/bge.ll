@@ -6,8 +6,8 @@
 ; RUN:     -mattr=+xkeysomnobge < %s \
 ; RUN:   | FileCheck -check-prefixes=NOBGE %s
 
-define i32 @f(i32 %a, i32 %b) {
-; ALL-LABEL: f:
+define i32 @f1(i32 %a, i32 %b) {
+; ALL-LABEL: f1:
 ; ALL:       # %bb.0: # %entry
 ; ALL-NEXT:    bge a0, a1, .LBB0_2
 ; ALL-NEXT:  # %bb.1:
@@ -17,7 +17,7 @@ define i32 @f(i32 %a, i32 %b) {
 ; ALL-NEXT:    addi a0, zero, 7
 ; ALL-NEXT:    jalr zero, 0(ra)
 ;
-; NOBGE-LABEL: f:
+; NOBGE-LABEL: f1:
 ; NOBGE:       # %bb.0: # %entry
 ; NOBGE-NEXT:    blt a0, a1, .LBB0_2
 ; NOBGE-NEXT:  # %bb.1: # %entry
@@ -31,4 +31,81 @@ entry:
   %cmp.not = icmp slt i32 %a, %b
   %cond = select i1 %cmp.not, i32 11, i32 7
   ret i32 %cond
+}
+
+define i16 @f2(i16 %0) {
+; ALL-LABEL: f2:
+; ALL:       # %bb.0: # %entry
+; ALL-NEXT:    slli a0, a0, 16
+; ALL-NEXT:    srai a0, a0, 16
+; ALL-NEXT:    bge zero, a0, .LBB1_2
+; ALL-NEXT:  # %bb.1: # %l1
+; ALL-NEXT:    addi a0, zero, 0
+; ALL-NEXT:    jalr zero, 0(ra)
+; ALL-NEXT:  .LBB1_2: # %l2
+; ALL-NEXT:    addi a0, zero, 1
+; ALL-NEXT:    jalr zero, 0(ra)
+;
+; NOBGE-LABEL: f2:
+; NOBGE:       # %bb.0: # %entry
+; NOBGE-NEXT:    slli a0, a0, 16
+; NOBGE-NEXT:    srai a0, a0, 16
+; NOBGE-NEXT:    blt zero, a0, .LBB1_1
+; NOBGE-NEXT:    jal zero, .LBB1_2
+; NOBGE-NEXT:  .LBB1_1: # %l1
+; NOBGE-NEXT:    addi a0, zero, 0
+; NOBGE-NEXT:    jalr zero, 0(ra)
+; NOBGE-NEXT:  .LBB1_2: # %l2
+; NOBGE-NEXT:    addi a0, zero, 1
+; NOBGE-NEXT:    jalr zero, 0(ra)
+entry:
+  %cmp298 = icmp sgt i16 %0, 0
+  br i1 %cmp298, label %l1, label %l2
+
+l1:
+  ret i16 0
+l2:
+  ret i16 1
+}
+
+define i16 @f3(i16 %x) {
+; ALL-LABEL: f3:
+; ALL:       # %bb.0: # %entry
+; ALL-NEXT:    slli a0, a0, 16
+; ALL-NEXT:    srai a1, a0, 16
+; ALL-NEXT:    bge zero, a1, .LBB2_2
+; ALL-NEXT:  # %bb.1: # %entry
+; ALL-NEXT:    blt a0, zero, .LBB2_3
+; ALL-NEXT:  .LBB2_2: # %l3
+; ALL-NEXT:    addi a0, zero, 0
+; ALL-NEXT:    jalr zero, 0(ra)
+; ALL-NEXT:  .LBB2_3: # %l4
+; ALL-NEXT:    addi a0, zero, 1
+; ALL-NEXT:    jalr zero, 0(ra)
+;
+; NOBGE-LABEL: f3:
+; NOBGE:       # %bb.0: # %entry
+; NOBGE-NEXT:    slli a0, a0, 16
+; NOBGE-NEXT:    srai a1, a0, 16
+; NOBGE-NEXT:    blt zero, a1, .LBB2_1
+; NOBGE-NEXT:    jal zero, .LBB2_3
+; NOBGE-NEXT:  .LBB2_1: # %entry
+; NOBGE-NEXT:    blt a0, zero, .LBB2_2
+; NOBGE-NEXT:    jal zero, .LBB2_3
+; NOBGE-NEXT:  .LBB2_2: # %l4
+; NOBGE-NEXT:    addi a0, zero, 1
+; NOBGE-NEXT:    jalr zero, 0(ra)
+; NOBGE-NEXT:  .LBB2_3: # %l3
+; NOBGE-NEXT:    addi a0, zero, 0
+; NOBGE-NEXT:    jalr zero, 0(ra)
+entry:
+  %cmp298 = icmp sle i16 %x, 0
+  %cmp.i = icmp sgt i16 %x, -1
+  %or.cond = or i1 %cmp298, %cmp.i
+  br i1 %or.cond, label %l3, label %l4
+
+l3:
+  ret i16 0
+l4:
+  ret i16 1
 }
