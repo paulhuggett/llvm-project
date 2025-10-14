@@ -281,10 +281,6 @@ private:
                  MachineBasicBlock::iterator &NextMBBI);
   bool expandBGEU(MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
                   MachineBasicBlock::iterator &NextMBBI);
-  bool expandSB(MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
-                MachineBasicBlock::iterator &NextMBBI);
-  bool expandSH(MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
-                MachineBasicBlock::iterator &NextMBBI);
   bool expandLB(MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
                 MachineBasicBlock::iterator &NextMBBI, bool IsLBU);
   bool expandLH(MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
@@ -296,6 +292,11 @@ private:
   bool expandSetLessThan(unsigned CC, MachineBasicBlock &OrigBB,
                          MachineBasicBlock::iterator MBBI,
                          MachineBasicBlock::iterator &NextMBBI);
+  bool expandLoad(MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
+                  unsigned const Replacement, bool const ReplacementIsSigned,
+                  unsigned const Bits);
+  void mask(InstructionHelper &Helper, Register Out, Register In,
+            unsigned Bits);
 };
 char RISCVKeysomExpand::ID = 0;
 
@@ -374,10 +375,6 @@ bool RISCVKeysomExpand::expandMI(MachineBasicBlock &MBB,
     return expandLH(MBB, MBBI, NextMBBI, /*IsLHU=*/false);
   case RISCV::LHU:
     return expandLH(MBB, MBBI, NextMBBI, /*IsLHU=*/true);
-  case RISCV::SB:
-    return expandSB(MBB, MBBI, NextMBBI);
-  case RISCV::SH:
-    return expandSH(MBB, MBBI, NextMBBI);
   }
   return false;
 }
@@ -516,6 +513,22 @@ bool RISCVKeysomExpand::expandSLTIU(MachineBasicBlock &OrigBB,
   return true;
 }
 
+// Generates the proper instructions that mask a register with an immediate.
+void RISCVKeysomExpand::mask(InstructionHelper &Helper, Register Out,
+                             Register In, unsigned Bits) {
+  const auto Mask = (1U << Bits) - 1U;
+  // <2^11 is used here (the andi immediate field is 12 bits) so that the
+  // immediate value remains positive.
+  if (Mask < 1U << 11) {
+    // The immediate value fits in the andi instruction's immediate field.
+    Helper.rvAndi(Out, In, Mask);
+  } else {
+    Register UpperImm = Helper.rvLui((Mask >> 12) + 1U);
+    Register FullMask = Helper.rvAddi(UpperImm, -1);
+    Helper.rvAnd(Out, In, FullMask);
+  }
+}
+
 bool RISCVKeysomExpand::expandSRLI(MachineBasicBlock &OrigBB,
                                    MachineBasicBlock::iterator MBBI,
                                    MachineBasicBlock::iterator &NextMBBI) {
@@ -558,18 +571,7 @@ bool RISCVKeysomExpand::expandSRLI(MachineBasicBlock &OrigBB,
   //   rd = ShiftA & SextMask
   auto ShiftA = Helper.rvSrai(Rs1, ShAmt);
   // Now mask out the effect of the sign extension that SRA performs.
-  const auto Mask = (1U << (STI_->getXLen() - ShAmt)) - 1U;
-  // <2^11 is used here (the andi immediate field is 12 bits) so that the
-  // immediate value remains positive.
-  if (Mask < 1U << 11) {
-    Helper.rvAndi(Rd, ShiftA, Mask);
-  } else {
-    Register UpperImm = MRI.createVirtualRegister(MRI.getRegClass(Rd));
-    BuildMI(OrigBB, MBBI, DL, TII_->get(RISCV::LUI), UpperImm)
-        .addImm((Mask >> 12) + 1U);
-    auto FullMask = Helper.rvAddi(UpperImm, -1);
-    Helper.rvAnd(Rd, ShiftA, FullMask);
-  }
+  this->mask(Helper, Rd, ShiftA, STI_->getXLen() - ShAmt);
   MI.eraseFromParent();
   return true;
 }
@@ -669,6 +671,7 @@ bool RISCVKeysomExpand::expandSLT(MachineBasicBlock &OrigBB,
   }
   return this->expandSetLessThan(RISCV::BLT, OrigBB, MBBI, NextMBBI);
 }
+
 bool RISCVKeysomExpand::expandSLTU(MachineBasicBlock &OrigBB,
                                    MachineBasicBlock::iterator MBBI,
                                    MachineBasicBlock::iterator &NextMBBI) {
@@ -1103,101 +1106,18 @@ bool RISCVKeysomExpand::expandSRAI(MachineBasicBlock &OrigBB,
   return true;
 }
 
-void updateMemOperands(MachineInstr *const Instruction,
-                       MachineMemOperand const &PrevMemOperand,
-                       uint64_t NewOffset, LocationSize NewSize,
-                       MachineMemOperand::Flags NewFlags) {
-  assert(Instruction != nullptr);
-  assert(Instruction->memoperands_empty());
-
-  MachineFunction &Function = *Instruction->getParent()->getParent();
-  MachinePointerInfo PtrInfo = PrevMemOperand.getPointerInfo();
-  PtrInfo.Offset = NewOffset;
-  std::array<MachineMemOperand *, 1> NewMemRefs{{Function.getMachineMemOperand(
-      PtrInfo, NewFlags,
-      NewSize, // Updated size
-      PrevMemOperand.getBaseAlign(), PrevMemOperand.getAAInfo(),
-      PrevMemOperand.getRanges(), PrevMemOperand.getSyncScopeID(),
-      PrevMemOperand.getSuccessOrdering(),
-      PrevMemOperand.getFailureOrdering())}};
-  Instruction->setMemRefs(Function, NewMemRefs);
-}
-
-MachineMemOperand const &getMachineMemOperand(MachineInstr const &MI) {
-  assert(MI.hasOneMemOperand());
-  MachineMemOperand const *const MMO = *MI.memoperands_begin();
-  return *MMO;
-}
-
-std::tuple<uint64_t, LocationSize, MachineMemOperand::Flags>
-getStoreMemOperands(MachineInstr const &MI) {
-  assert(MI.hasOneMemOperand());
-  MachineMemOperand const &MMO = getMachineMemOperand(MI);
-  return {MMO.getPointerInfo().Offset, MMO.getSize(), MMO.getFlags()};
-}
-
-constexpr MachineMemOperand::Flags
-memFlagsForStore(MachineMemOperand::Flags Flags) {
-  return (Flags & ~MachineMemOperand::Flags::MOLoad) |
-         MachineMemOperand::Flags::MOStore;
-}
-constexpr MachineMemOperand::Flags
-memFlagsForLoad(MachineMemOperand::Flags Flags) {
-  return (Flags & ~MachineMemOperand::Flags::MOStore) |
-         MachineMemOperand::Flags::MOLoad;
-}
-
-enum class AlignType { unknown, odd, even };
-
-static AlignType getAlignmentKind(MachineInstr const &MI,
-                                  MachineFunction const &Function) {
-  auto OpAligned = AlignType::unknown;
-
-  // Code here attempts to determine whether the store is to an address that is
-  // known to be even or odd aligned.
-  for (MachineMemOperand const *const MemOperand : MI.memoperands()) {
-    if (Align Alignment = MemOperand->getAlign(); Alignment > Align(1)) {
-      const int64_t Offset = MemOperand->getOffset();
-      OpAligned = (Offset > 0 && (static_cast<uint64_t>(Offset) & 1) != 0)
-                      ? AlignType::odd
-                      : AlignType::even;
-    }
-  }
-
-  DataLayout const &Layout = Function.getDataLayout();
-  auto &Op1 = MI.getOperand(1);
-  auto &Op2 = MI.getOperand(2);
-
-  // In the case of a store to a global structure, we can do better by
-  // examining the alignment of the struct itself and looking at the
-  // offset of the store within it.
-  if (Op1.isReg() && Op2.isGlobal()) {
-    if (const GlobalVariable *const GVar =
-            dyn_cast<GlobalVariable>(Op2.getGlobal())) {
-      if (StructType *const ST = dyn_cast<StructType>(GVar->getValueType())) {
-        const StructLayout *const SL = Layout.getStructLayout(ST);
-        if (SL->getAlignment() > Align(1)) {
-          OpAligned =
-              (Op2.getOffset() & 1) == 0 ? AlignType::even : AlignType::odd;
-        }
-      }
-    }
-  }
-  return OpAligned;
-}
-
-bool RISCVKeysomExpand::expandSB(MachineBasicBlock &OrigBB,
-                                 MachineBasicBlock::iterator MBBI,
-                                 MachineBasicBlock::iterator &NextMBBI) {
-  if (!STI_->hasVendorXKeysomNoSb()) {
-    return false;
-  }
+bool RISCVKeysomExpand::expandLoad(MachineBasicBlock &OrigBB,
+                                   MachineBasicBlock::iterator MBBI,
+                                   unsigned const Replacement,
+                                   bool const ReplacementIsSigned,
+                                   unsigned const Bits) {
   if (!IsPreRA_) {
-    assert(false && "Can't expand SB after register allocation");
+    assert(false && "Can't expand load after register allocation");
     return false;
   }
+
   MachineInstr &MI = *MBBI;
-  assert(MI.getNumOperands() == 3 && "Expected SB to have 3 operands");
+  assert(MI.getNumOperands() == 3 && "Expected load to have 3 operands");
   Register Rs2 = MI.getOperand(0).getReg(); // destination is always a register.
 
   MachineFunction *const Function = OrigBB.getParent();
@@ -1206,84 +1126,21 @@ bool RISCVKeysomExpand::expandSB(MachineBasicBlock &OrigBB,
   InstructionHelper Helper{
       MRI, DestRegisterClass, OrigBB, MBBI, MI.getDebugLoc(), STI_, TII_};
 
-  // (TODO: the andi rs2b,rs2,255 instruction is not necessary here since 'sh'
-  // will ignore bits in the upper half of the word.)
-  Register Rs2b = Helper.rvAndi(Rs2, 0xFF);
+  Register LoadResult = MRI.createVirtualRegister(DestRegisterClass);
+  auto *const LHInstr = BuildMI(OrigBB, MBBI, MI.getDebugLoc(),
+                                TII_->get(Replacement), LoadResult)
+                            .add(MI.getOperand(1))
+                            .add(MI.getOperand(2))
+                            .getInstr();
+  LHInstr->setMemRefs(*Function, MI.memoperands());
 
-  AlignType StoreAligned = getAlignmentKind(MI, *Function);
-  DataLayout const &Layout = Function->getDataLayout();
-  auto &Op1 = MI.getOperand(1);
-  auto &Op2 = MI.getOperand(2);
-
-  bool const WasKill = setKill(Op1, false);
-
-  auto [MOOffset, MOSize, MOFlags] = getStoreMemOperands(MI);
-  MOOffset &= ~1;
-  MOSize = MOSize.unionWith(LocationSize::precise(2));
-  MachineInstr *SHInstr = nullptr;
-
-  if (StoreAligned != AlignType::unknown) {
-    if (StoreAligned == AlignType::odd && Op2.isGlobal()) {
-      Op2.setOffset(Op2.getOffset() & ~1U);
-    }
-    Register Value = MRI.createVirtualRegister(DestRegisterClass);
-    MachineInstr *const LHInstr =
-        BuildMI(OrigBB, MBBI, MI.getDebugLoc(), TII_->get(RISCV::LH), Value)
-            .add(Op1)
-            .add(Op2)
-            .getInstr();
-    updateMemOperands(LHInstr, getMachineMemOperand(MI), MOOffset, MOSize,
-                      memFlagsForLoad(MOFlags));
-
-    Register NewValue;
-    // TODO: invert for big-endian?
-    if (StoreAligned == AlignType::even) {
-      NewValue = Helper.rvOr(Helper.rvAndi(Value, -256), Rs2b);
-    } else {
-      NewValue =
-          Helper.rvOr(Helper.rvAndi(Value, 0xFFU), Helper.rvSlli(Rs2b, 8));
-    }
-
-    SHInstr = BuildMI(OrigBB, MBBI, MI.getDebugLoc(), TII_->get(RISCV::SH))
-                  .addReg(NewValue, RegState::Kill)
-                  .add(Op1)
-                  .add(Op2)
-                  .getInstr();
+  if (ReplacementIsSigned) {
+    this->mask(Helper, Rs2, LoadResult, Bits); // Mask the upper bits
   } else {
-    Register Addr = Helper.rvAdd(Op1, Op2);
-    Register AlignedAddr = Helper.rvAndi(Addr, ~1);
-    Register LHValue = MRI.createVirtualRegister(DestRegisterClass);
-    MachineInstr *const LHInstr =
-        BuildMI(OrigBB, MBBI, MI.getDebugLoc(), TII_->get(RISCV::LH), LHValue)
-            .addReg(AlignedAddr)
-            .addImm(0)
-            .getInstr();
-    updateMemOperands(LHInstr, getMachineMemOperand(MI), MOOffset, MOSize,
-                      memFlagsForLoad(MOFlags));
-
-    Register Shift =
-        Helper.rvSltu(AlignedAddr, Addr); // Shift = AlignedAddr < Addr
-    if (Layout.isBigEndian()) {
-      Shift = Helper.rvXori(Shift, 1); // Shift = !Shift
-    }
-    Shift = Helper.rvSlli(Shift, 3); // Shift *= 8
-
-    // mask is 0x00FF (even) or 0xFF00 (odd)
-    Register Mask =
-        Helper.rvXori(Helper.rvSll(Helper.rvAddi(RISCV::X0, 0xFF), Shift), -1);
-    Register Rs2Shifted = Helper.rvSll(Rs2b, Shift);
-    Register SHValue = Helper.rvOr(Helper.rvAnd(LHValue, Mask), Rs2Shifted);
-
-    SHInstr = BuildMI(OrigBB, MBBI, MI.getDebugLoc(), TII_->get(RISCV::SH))
-                  .addReg(SHValue, RegState::Kill)
-                  .addReg(AlignedAddr, RegState::Kill)
-                  .addImm(0)
-                  .getInstr();
+    auto const Shift = STI_->getXLen() - Bits;
+    // Sign extension.
+    Helper.rvSrai(Rs2, Helper.rvSlli(LoadResult, Shift), Shift);
   }
-  updateMemOperands(SHInstr, getMachineMemOperand(MI), MOOffset, MOSize,
-                    memFlagsForStore(MOFlags));
-  setKill(Op1, WasKill); // Restore the original kill state.
-
   MI.eraseFromParent();
   return true;
 }
@@ -1292,246 +1149,24 @@ bool RISCVKeysomExpand::expandLB(MachineBasicBlock &OrigBB,
                                  MachineBasicBlock::iterator MBBI,
                                  MachineBasicBlock::iterator &NextMBBI,
                                  bool IsLBU) {
-  if (IsLBU && !STI_->hasVendorXKeysomNoLbu()) {
+  if (IsLBU == !STI_->hasVendorXKeysomNoLbu() ||
+      IsLBU == STI_->hasVendorXKeysomNoLb()) {
     return false;
   }
-  if (!IsLBU && !STI_->hasVendorXKeysomNoLb()) {
-    return false;
-  }
-  if (!IsPreRA_) {
-    assert(false && "Can't expand LB/LBU after register allocation");
-    return false;
-  }
-
-  MachineInstr &MI = *MBBI;
-  assert(MI.getNumOperands() == 3 && "Expected LB/LBU to have 3 operands");
-  Register Rs2 = MI.getOperand(0).getReg(); // destination is always a register.
-
-  MachineFunction *const Function = OrigBB.getParent();
-  MachineRegisterInfo &MRI = Function->getRegInfo();
-  const TargetRegisterClass *const DestRegisterClass = MRI.getRegClass(Rs2);
-  InstructionHelper Helper{
-      MRI, DestRegisterClass, OrigBB, MBBI, MI.getDebugLoc(), STI_, TII_};
-
-  const AlignType LoadAligned = getAlignmentKind(MI, *Function);
-  auto &Op1 = MI.getOperand(1);
-  auto &Op2 = MI.getOperand(2);
-
-  auto [MOOffset, MOSize, MOFlags] = getStoreMemOperands(MI);
-  MOSize = MOSize.unionWith(LocationSize::precise(2));
-
-  const MCInstrDesc &LoadInstruction =
-      TII_->get(IsLBU ? RISCV::LHU : RISCV::LH);
-
-  Register LoadResult{};
-  int64_t ShAmt = 24;
-  MachineInstr *LHInstr = nullptr;
-  if (LoadAligned == AlignType::odd) {
-    if (Op2.isGlobal()) {
-      Op2.setOffset(Op2.getOffset() & ~1U);
-    }
-    LoadResult = MRI.createVirtualRegister(DestRegisterClass);
-    LHInstr =
-        BuildMI(OrigBB, MBBI, MI.getDebugLoc(), LoadInstruction, LoadResult)
-            .add(Op1)
-            .add(Op2)
-            .getInstr();
-    // The value is in bits 8-15.
-    ShAmt = 16;
-  } else if (LoadAligned == AlignType::even) {
-    LoadResult = MRI.createVirtualRegister(DestRegisterClass);
-    LHInstr =
-        BuildMI(OrigBB, MBBI, MI.getDebugLoc(), LoadInstruction, LoadResult)
-            .add(Op1)
-            .add(Op2)
-            .getInstr();
-  } else {
-    Register Addr = Helper.rvAdd(Op1, Op2);
-    Register AlignedAddr = Helper.rvAndi(Addr, ~1);
-    Register LHValue = MRI.createVirtualRegister(DestRegisterClass);
-    LHInstr = BuildMI(OrigBB, MBBI, MI.getDebugLoc(), LoadInstruction, LHValue)
-                  .addReg(AlignedAddr)
-                  .addImm(0)
-                  .getInstr();
-    // Shift = AlignedAddr < Addr = 1(odd)/0(even)
-    Register Shift = Helper.rvSltu(AlignedAddr, Addr);
-    Register Shift8 = Helper.rvSlli(Shift, 3);  // Shift *= 8
-    LoadResult = Helper.rvSrl(LHValue, Shift8); // Rs2 = LhValue << Shift8
-  }
-  updateMemOperands(LHInstr, getMachineMemOperand(MI), MOOffset & ~1, MOSize,
-                    memFlagsForLoad(MOFlags));
-
-  if (IsLBU) {
-    // Zero extend
-    if (LoadAligned == AlignType::odd) {
-      Helper.rvAndi(Rs2, Helper.rvSrli(LoadResult, 8), 0xFF);
-    } else {
-      Helper.rvAndi(Rs2, LoadResult, 0xFF);
-    }
-  } else {
-    // Now do the sign extension.
-    Register ShiftToTop =
-        Helper.rvSlli(LoadResult, ShAmt); // move bit 7 to bit 31
-    // Arithmetic shift right fills with sign
-    Helper.rvSrai(Rs2, ShiftToTop, 24);
-  }
-
-  MI.eraseFromParent();
-  return true;
-}
-
-bool RISCVKeysomExpand::expandSH(MachineBasicBlock &OrigBB,
-                                 MachineBasicBlock::iterator MBBI,
-                                 MachineBasicBlock::iterator &NextMBBI) {
-  if (!STI_->hasVendorXKeysomNoSh()) {
-    return false;
-  }
-  if (!IsPreRA_) {
-    assert(false && "Can't expand SH after register allocation");
-    return false;
-  }
-  MachineInstr &MI = *MBBI;
-  assert(MI.getNumOperands() == 3 && "Expected SH to have 3 operands");
-  Register Rs2 = MI.getOperand(0).getReg();
-
-  MachineFunction *const Function = OrigBB.getParent();
-  MachineRegisterInfo &MRI = Function->getRegInfo();
-  InstructionHelper Helper{
-      MRI, MRI.getRegClass(Rs2), OrigBB, MBBI, MI.getDebugLoc(), STI_, TII_};
-
-  Register MaskUpper = Helper.rvLui(16);
-  Register MaskFFFF = Helper.rvAddi(MaskUpper, -1);
-  Register Rs2b = Helper.rvAnd(MaskFFFF, Rs2);
-
-  AlignType StoreAligned = AlignType::unknown;
-  DataLayout const &Layout = Function->getDataLayout();
-  auto &Op1 = MI.getOperand(1);
-  auto &Op2 = MI.getOperand(2);
-
-  bool const WasKill = setKill(Op1, false);
-
-  auto [MOOffset, MOSize, MOFlags] = getStoreMemOperands(MI);
-  MOOffset &= ~0b11;
-  MOSize = MOSize.unionWith(LocationSize::precise(4));
-  MachineInstr *SWInstr = nullptr;
-
-  if (StoreAligned != AlignType::unknown) {
-    assert(false); // TODO
-  } else {
-    Register Addr = Helper.rvAdd(Op1, Op2);
-    Register AlignedAddr = Helper.rvAndi(Addr, ~0b11);
-    Register LWValue = MRI.createVirtualRegister(MRI.getRegClass(Rs2));
-    MachineInstr *const LWInstr =
-        BuildMI(OrigBB, MBBI, MI.getDebugLoc(), TII_->get(RISCV::LW), LWValue)
-            .addReg(AlignedAddr)
-            .addImm(0)
-            .getInstr();
-    updateMemOperands(LWInstr, getMachineMemOperand(MI), MOOffset, MOSize,
-                      memFlagsForLoad(MOFlags));
-
-    Register Shift =
-        Helper.rvSltu(AlignedAddr, Addr); // Shift = AlignedAddr < Addr
-    if (Layout.isBigEndian()) {
-      Shift = Helper.rvXori(Shift, 1); // Shift = !Shift
-    }
-    Shift = Helper.rvSlli(Shift, 4); // Shift *= 16
-
-    Register Mask = Helper.rvXori(Helper.rvSll(MaskFFFF, Shift), -1);
-    Register Rs2Shifted = Helper.rvSll(Rs2b, Shift);
-    Register SWValue = Helper.rvOr(Helper.rvAnd(LWValue, Mask), Rs2Shifted);
-
-    SWInstr = BuildMI(OrigBB, MBBI, MI.getDebugLoc(), TII_->get(RISCV::SW))
-                  .addReg(SWValue, RegState::Kill)
-                  .addReg(AlignedAddr, RegState::Kill)
-                  .addImm(0)
-                  .getInstr();
-  }
-  updateMemOperands(SWInstr, getMachineMemOperand(MI), MOOffset, MOSize,
-                    memFlagsForStore(MOFlags));
-  setKill(Op1, WasKill); // Restore the original kill state.
-
-  MI.eraseFromParent();
-  return true;
+  return this->expandLoad(OrigBB, MBBI, IsLBU ? RISCV::LB : RISCV::LBU, IsLBU,
+                          8U);
 }
 
 bool RISCVKeysomExpand::expandLH(MachineBasicBlock &OrigBB,
                                  MachineBasicBlock::iterator MBBI,
                                  MachineBasicBlock::iterator &NextMBBI,
                                  bool IsLHU) {
-  if (IsLHU && !STI_->hasVendorXKeysomNoLhu()) {
+  if (IsLHU == !STI_->hasVendorXKeysomNoLhu() ||
+      IsLHU == STI_->hasVendorXKeysomNoLh()) {
     return false;
   }
-  if (!IsLHU && !STI_->hasVendorXKeysomNoLh()) {
-    return false;
-  }
-  if (!IsPreRA_) {
-    assert(false && "Can't expand LH/LHU after register allocation");
-    return false;
-  }
-
-  MachineInstr &MI = *MBBI;
-  assert(MI.getNumOperands() == 3 && "Expected LH/LHU to have 3 operands");
-  Register Rs2 = MI.getOperand(0).getReg(); // destination is always a register.
-
-  MachineFunction *const Function = OrigBB.getParent();
-  MachineRegisterInfo &MRI = Function->getRegInfo();
-  InstructionHelper Helper{
-      MRI, MRI.getRegClass(Rs2), OrigBB, MBBI, MI.getDebugLoc(), STI_, TII_};
-
-  AlignType LoadAligned = AlignType::unknown; // getAlignmentKind(MI,
-                                              // *Function);
-
-  auto &Op1 = MI.getOperand(1);
-  auto &Op2 = MI.getOperand(2);
-
-  auto [MOOffset, MOSize, MOFlags] = getStoreMemOperands(MI);
-  MOOffset &= ~0b11, MOSize = MOSize.unionWith(LocationSize::precise(4));
-
-  Register Result{};
-  if (LoadAligned == AlignType::odd) {
-    assert(false); // TODO
-  } else if (LoadAligned == AlignType::even) {
-    assert(false); // TODO
-  } else {
-    Register Addr = Helper.rvAdd(Op1, Op2);
-    Register AlignedAddr = Helper.rvAndi(Addr, ~0b11);
-    Register LWValue = MRI.createVirtualRegister(MRI.getRegClass(Rs2));
-    MachineInstr *const LWInstr =
-        BuildMI(OrigBB, MBBI, MI.getDebugLoc(), TII_->get(RISCV::LW), LWValue)
-            .addReg(AlignedAddr)
-            .addImm(0)
-            .getInstr();
-    updateMemOperands(LWInstr, getMachineMemOperand(MI), MOOffset & ~0b11,
-                      MOSize, memFlagsForLoad(MOFlags));
-
-    Register Shift0 = Helper.rvSub(Addr, AlignedAddr); // shift is 0 or 2
-    Register Shift = Helper.rvSlli(Shift0, 3);         // Shift *= 8
-
-    Register LWValue2 =
-        Helper.rvSrl(LWValue, Shift); // LWValue2 = LWValue >> Shift
-
-    Result = LWValue2;
-  }
-
-  if (IsLHU) {
-    // Zero extend
-    if (LoadAligned == AlignType::odd) {
-      assert(false); // TODO
-    } else {
-      Register MaxShortUpper = Helper.rvLui(16);
-      Register MaxShort = Helper.rvAddi(MaxShortUpper, -1); // MaxShort = 0xFFFF
-
-      Helper.rvAnd(Rs2, Result, MaxShort);
-    }
-  } else {
-    // Now do the sign extension.
-    Register ShiftToTop = Helper.rvSlli(Result, 16); // move bit 15 to bit 31
-    Helper.rvSrai(Rs2, ShiftToTop,
-                  16); // arithmetic shift right fills with sign
-  }
-
-  MI.eraseFromParent();
-  return true;
+  return this->expandLoad(OrigBB, MBBI, IsLHU ? RISCV::LH : RISCV::LHU, IsLHU,
+                          16U);
 }
 
 } // end anonymous namespace

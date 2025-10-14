@@ -320,6 +320,22 @@ public:
                 "target-abi)\n";
     }
 
+    // *PBH*: Begin added. There are disallowed combinations of disabled
+    // instructions.
+    if (STI.hasFeature(RISCV::FeatureVendorXKeysomNoLb) &&
+        STI.hasFeature(RISCV::FeatureVendorXKeysomNoLbu)) {
+      Parser.getContext().reportError(
+          SMLoc{}, "the LB (xkeysomnolb) and LBU (xkeysomnolbu) instructions "
+                   "cannot both be disabled");
+    }
+    if (STI.hasFeature(RISCV::FeatureVendorXKeysomNoLh) &&
+        STI.hasFeature(RISCV::FeatureVendorXKeysomNoLhu)) {
+      Parser.getContext().reportError(
+          SMLoc{}, "the LH (xkeysomnolh) and LHU (xkeysomnolhu) instructions "
+                   "cannot both be disabled");
+    }
+    // *PBH*: End
+
     // Use computeTargetABI to check if ABIName is valid. If invalid, output
     // error message.
     RISCVABI::computeTargetABI(STI.getTargetTriple(), STI.getFeatureBits(),

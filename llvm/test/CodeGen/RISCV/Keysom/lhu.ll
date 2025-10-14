@@ -6,6 +6,9 @@
 ; RUN:     --disable-block-placement \
 ; RUN:     -mattr=+xkeysomnolhu < %s \
 ; RUN:   | FileCheck -check-prefixes=NOLHU %s
+; RUN: not llc -mtriple=riscv32 -riscv-no-aliases -verify-machineinstrs \
+; RUN:     --disable-block-placement \
+; RUN:     -mattr=+xkeysomnolhu -mattr=+xkeysomnolh < %s
 
 %struct.mystruct = type { i32, i16, i16 }
 
@@ -24,13 +27,8 @@ define zeroext i16 @unaligned_global() {
 ; NOLHU-LABEL: unaligned_global:
 ; NOLHU:       # %bb.0: # %entry
 ; NOLHU-NEXT:    lui a0, %hi(global2)
-; NOLHU-NEXT:    addi a0, a0, %lo(global2)
-; NOLHU-NEXT:    andi a1, a0, -4
-; NOLHU-NEXT:    lw a2, 0(a1)
-; NOLHU-NEXT:    sub a0, a0, a1
+; NOLHU-NEXT:    lh a0, %lo(global2)(a0)
 ; NOLHU-NEXT:    lui a1, 16
-; NOLHU-NEXT:    slli a0, a0, 3
-; NOLHU-NEXT:    srl a0, a2, a0
 ; NOLHU-NEXT:    addi a1, a1, -1
 ; NOLHU-NEXT:    and a0, a0, a1
 ; NOLHU-NEXT:    jalr zero, 0(ra)
@@ -49,13 +47,8 @@ define zeroext i16 @global_even() {
 ; NOLHU-LABEL: global_even:
 ; NOLHU:       # %bb.0: # %entry
 ; NOLHU-NEXT:    lui a0, %hi(global+4)
-; NOLHU-NEXT:    addi a0, a0, %lo(global+4)
-; NOLHU-NEXT:    andi a1, a0, -4
-; NOLHU-NEXT:    lw a2, 0(a1)
-; NOLHU-NEXT:    sub a0, a0, a1
+; NOLHU-NEXT:    lh a0, %lo(global+4)(a0)
 ; NOLHU-NEXT:    lui a1, 16
-; NOLHU-NEXT:    slli a0, a0, 3
-; NOLHU-NEXT:    srl a0, a2, a0
 ; NOLHU-NEXT:    addi a1, a1, -1
 ; NOLHU-NEXT:    and a0, a0, a1
 ; NOLHU-NEXT:    jalr zero, 0(ra)
@@ -74,13 +67,8 @@ define zeroext i16 @global_odd() {
 ; NOLHU-LABEL: global_odd:
 ; NOLHU:       # %bb.0: # %entry
 ; NOLHU-NEXT:    lui a0, %hi(global+6)
-; NOLHU-NEXT:    addi a0, a0, %lo(global+6)
-; NOLHU-NEXT:    andi a1, a0, -4
-; NOLHU-NEXT:    lw a2, 0(a1)
-; NOLHU-NEXT:    sub a0, a0, a1
+; NOLHU-NEXT:    lh a0, %lo(global+6)(a0)
 ; NOLHU-NEXT:    lui a1, 16
-; NOLHU-NEXT:    slli a0, a0, 3
-; NOLHU-NEXT:    srl a0, a2, a0
 ; NOLHU-NEXT:    addi a1, a1, -1
 ; NOLHU-NEXT:    and a0, a0, a1
 ; NOLHU-NEXT:    jalr zero, 0(ra)
@@ -118,16 +106,11 @@ define zeroext i16 @stack_even() {
 ; NOLHU-NEXT:    lh a1, 4(a0)
 ; NOLHU-NEXT:    sh a1, 8(sp)
 ; NOLHU-NEXT:    lh a0, 6(a0)
-; NOLHU-NEXT:    addi a1, sp, 8
-; NOLHU-NEXT:    andi a2, a1, -4
 ; NOLHU-NEXT:    sh a0, 6(sp)
-; NOLHU-NEXT:    lw a0, 0(a2)
-; NOLHU-NEXT:    sub a1, a1, a2
-; NOLHU-NEXT:    lui a2, 16
-; NOLHU-NEXT:    slli a1, a1, 3
-; NOLHU-NEXT:    srl a0, a0, a1
-; NOLHU-NEXT:    addi a2, a2, -1
-; NOLHU-NEXT:    and a0, a0, a2
+; NOLHU-NEXT:    lh a0, 8(sp)
+; NOLHU-NEXT:    lui a1, 16
+; NOLHU-NEXT:    addi a1, a1, -1
+; NOLHU-NEXT:    and a0, a0, a1
 ; NOLHU-NEXT:    addi sp, sp, 16
 ; NOLHU-NEXT:    .cfi_def_cfa_offset 0
 ; NOLHU-NEXT:    jalr zero, 0(ra)
@@ -171,21 +154,16 @@ define zeroext i16 @stack_odd() {
 ; NOLHU-NEXT:    .cfi_def_cfa_offset 16
 ; NOLHU-NEXT:    lui a0, %hi(global)
 ; NOLHU-NEXT:    lw a1, %lo(global)(a0)
-; NOLHU-NEXT:    addi a0, a0, %lo(global)
 ; NOLHU-NEXT:    sw a1, 8(sp)
+; NOLHU-NEXT:    addi a0, a0, %lo(global)
 ; NOLHU-NEXT:    lh a1, 4(a0)
 ; NOLHU-NEXT:    sh a1, 12(sp)
 ; NOLHU-NEXT:    lh a0, 6(a0)
-; NOLHU-NEXT:    addi a1, sp, 6
-; NOLHU-NEXT:    andi a2, a1, -4
 ; NOLHU-NEXT:    sh a0, 6(sp)
-; NOLHU-NEXT:    lw a0, 0(a2)
-; NOLHU-NEXT:    sub a1, a1, a2
-; NOLHU-NEXT:    lui a2, 16
-; NOLHU-NEXT:    slli a1, a1, 3
-; NOLHU-NEXT:    srl a0, a0, a1
-; NOLHU-NEXT:    addi a2, a2, -1
-; NOLHU-NEXT:    and a0, a0, a2
+; NOLHU-NEXT:    lh a0, 6(sp)
+; NOLHU-NEXT:    lui a1, 16
+; NOLHU-NEXT:    addi a1, a1, -1
+; NOLHU-NEXT:    and a0, a0, a1
 ; NOLHU-NEXT:    addi sp, sp, 16
 ; NOLHU-NEXT:    .cfi_def_cfa_offset 0
 ; NOLHU-NEXT:    jalr zero, 0(ra)
@@ -207,12 +185,8 @@ define zeroext i16 @no_align(ptr %ptr) {
 ;
 ; NOLHU-LABEL: no_align:
 ; NOLHU:       # %bb.0: # %entry
-; NOLHU-NEXT:    andi a1, a0, -4
-; NOLHU-NEXT:    lw a2, 0(a1)
-; NOLHU-NEXT:    sub a0, a0, a1
+; NOLHU-NEXT:    lh a0, 0(a0)
 ; NOLHU-NEXT:    lui a1, 16
-; NOLHU-NEXT:    slli a0, a0, 3
-; NOLHU-NEXT:    srl a0, a2, a0
 ; NOLHU-NEXT:    addi a1, a1, -1
 ; NOLHU-NEXT:    and a0, a0, a1
 ; NOLHU-NEXT:    jalr zero, 0(ra)
@@ -229,13 +203,8 @@ define zeroext i16 @ptr_even(ptr %ptr) {
 ;
 ; NOLHU-LABEL: ptr_even:
 ; NOLHU:       # %bb.0: # %entry
-; NOLHU-NEXT:    addi a0, a0, 4
-; NOLHU-NEXT:    andi a1, a0, -4
-; NOLHU-NEXT:    lw a2, 0(a1)
-; NOLHU-NEXT:    sub a0, a0, a1
+; NOLHU-NEXT:    lh a0, 4(a0)
 ; NOLHU-NEXT:    lui a1, 16
-; NOLHU-NEXT:    slli a0, a0, 3
-; NOLHU-NEXT:    srl a0, a2, a0
 ; NOLHU-NEXT:    addi a1, a1, -1
 ; NOLHU-NEXT:    and a0, a0, a1
 ; NOLHU-NEXT:    jalr zero, 0(ra)
@@ -253,13 +222,8 @@ define zeroext i16 @ptr_odd(ptr %ptr) {
 ;
 ; NOLHU-LABEL: ptr_odd:
 ; NOLHU:       # %bb.0: # %entry
-; NOLHU-NEXT:    addi a0, a0, 6
-; NOLHU-NEXT:    andi a1, a0, -4
-; NOLHU-NEXT:    lw a2, 0(a1)
-; NOLHU-NEXT:    sub a0, a0, a1
+; NOLHU-NEXT:    lh a0, 6(a0)
 ; NOLHU-NEXT:    lui a1, 16
-; NOLHU-NEXT:    slli a0, a0, 3
-; NOLHU-NEXT:    srl a0, a2, a0
 ; NOLHU-NEXT:    addi a1, a1, -1
 ; NOLHU-NEXT:    and a0, a0, a1
 ; NOLHU-NEXT:    jalr zero, 0(ra)

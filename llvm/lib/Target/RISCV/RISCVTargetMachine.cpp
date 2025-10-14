@@ -303,6 +303,17 @@ RISCVTargetMachine::getSubtargetImpl(const Function &F) const {
     }
     I = std::make_unique<RISCVSubtarget>(
         TargetTriple, CPU, TuneCPU, FS, ABIName, RVVBitsMin, RVVBitsMax, *this);
+
+    // *PBH*: Begin. Added a check for a disallowed combination of features
+    if (I->hasVendorXKeysomNoLb() && I->hasVendorXKeysomNoLbu()) {
+      F.getContext().emitError("the LB (xkeysomnolb) and LBU (xkeysomnolbu) "
+                               "instructions cannot both be disabled");
+    }
+    if (I->hasVendorXKeysomNoLh() && I->hasVendorXKeysomNoLhu()) {
+      F.getContext().emitError("the LH (xkeysomnolh) and LHU (xkeysomnolhu) "
+                               "instructions cannot both be disabled");
+    }
+    // *PBH*: End added.
   }
   return I.get();
 }

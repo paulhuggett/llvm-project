@@ -1323,12 +1323,6 @@ defm Lh : KeysomPredicates<FeatureVendorXKeysomNoLh>;
 def FeatureVendorXKeysomNoLhu : KeysomExtension<"Lhu">;
 defm Lhu : KeysomPredicates<FeatureVendorXKeysomNoLhu>;
 
-def FeatureVendorXKeysomNoSb : KeysomExtension<"Sb">;
-defm Sb : KeysomPredicates<FeatureVendorXKeysomNoSb>;
-
-def FeatureVendorXKeysomNoSh : KeysomExtension<"Sh">;
-defm Sh : KeysomPredicates<FeatureVendorXKeysomNoSh>;
-
 // *PBH*: TODO remove the nolui control.
 def FeatureVendorXKeysomNoLui : KeysomExtension<"Lui">;
 defm Lui : KeysomPredicates<FeatureVendorXKeysomNoLui>;

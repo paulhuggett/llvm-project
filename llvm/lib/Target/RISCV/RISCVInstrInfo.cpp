@@ -80,55 +80,6 @@ namespace llvm::RISCV {
 
 } // end namespace llvm::RISCV
 
-// *PBH*: Begin added
-static constexpr unsigned loadSigned(const unsigned Width,
-                                     const RISCVSubtarget &ST) {
-  switch (Width) {
-  case 1:
-    if (!ST.hasVendorXKeysomNoLb()) {
-      return RISCV::LB;
-    }
-    [[fallthrough]];
-  case 2:
-    if (!ST.hasVendorXKeysomNoLh()) {
-      return RISCV::LH;
-    }
-    [[fallthrough]];
-  case 4:
-    return RISCV::LW; // RV32: LW cannot be disabled
-  case 8:
-    return RISCV::LD;
-  default:
-    assert(false && "width must be 1,2,4,or 8");
-    break;
-  }
-}
-
-static constexpr unsigned loadUnsigned(const unsigned Width,
-                                       const RISCVSubtarget &ST) {
-  assert(Width == 1 || Width == 2 || Width == 4 || Width == 8);
-  switch (Width) {
-  case 1:
-    if (!ST.hasVendorXKeysomNoLbu()) {
-      return RISCV::LBU;
-    }
-    [[fallthrough]];
-  case 2:
-    if (!ST.hasVendorXKeysomNoLhu()) {
-      return RISCV::LHU;
-    }
-    [[fallthrough]];
-  case 4:
-    return ST.is64Bit() ? RISCV::LWU : RISCV::LW;
-  case 8:
-    return RISCV::LD;
-  default:
-    assert(false && "width must be 1,2,4,or 8");
-    break;
-  }
-}
-// *PBH*: End added
-
 RISCVInstrInfo::RISCVInstrInfo(RISCVSubtarget &STI)
     : RISCVGenInstrInfo(RISCV::ADJCALLSTACKDOWN, RISCV::ADJCALLSTACKUP),
       STI(STI) {}
@@ -182,21 +133,6 @@ static std::optional<unsigned> getLMULForRVVWholeLoadStore(unsigned Opcode) {
   }
 }
 
-// *PBH*: Helper functions that return whether any byte/halfword load/store
-// instructions are disabled. Returns true if any of the byte-wide load or store
-// instructions have been disabled.
-bool anyByteMemDisabled(const RISCVSubtarget &STI) {
-  return STI.hasVendorXKeysomNoLb() || STI.hasVendorXKeysomNoLbu() ||
-         STI.hasVendorXKeysomNoSb();
-}
-// Returns true if any of the halfword-wide load or store instructions have been
-// disabled.
-bool anyHalfwordMemDisabled(const RISCVSubtarget &STI) {
-  return STI.hasVendorXKeysomNoLh() || STI.hasVendorXKeysomNoLhu() ||
-         STI.hasVendorXKeysomNoSh();
-}
-// *PBH*: End added code
-
 Register RISCVInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
                                              int &FrameIndex,
                                              TypeSize &MemBytes) const {
@@ -205,26 +141,11 @@ Register RISCVInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
     return 0;
   case RISCV::LB:
   case RISCV::LBU:
-    // *PBH*: Use wider types if  narrow load or store is disabled.
     MemBytes = TypeSize::getFixed(1);
-    if (anyByteMemDisabled(STI)) {
-      MemBytes = TypeSize::getFixed(2);
-      if (anyHalfwordMemDisabled(STI)) {
-        MemBytes = TypeSize::getFixed(4);
-      }
-    }
-    // *PBH*: End change
     break;
   case RISCV::LH:
-  case RISCV::LHU:
-    // *PBH*: Use wider types if halfword load or store is disabled.
-    MemBytes = TypeSize::getFixed(2);
-    if (anyHalfwordMemDisabled(STI)) {
-      MemBytes = TypeSize::getFixed(4);
-    }
-    // *PBH*: End change
-    break;
   case RISCV::LH_INX:
+  case RISCV::LHU:
   case RISCV::FLH:
     MemBytes = TypeSize::getFixed(2);
     break;
@@ -274,23 +195,8 @@ Register RISCVInstrInfo::isStoreToStackSlot(const MachineInstr &MI,
     return 0;
   case RISCV::SB:
     MemBytes = TypeSize::getFixed(1);
-    // *PBH*: If byte-wide stores are not available, use wider ones!
-    if (anyByteMemDisabled(STI)) {
-      MemBytes = TypeSize::getFixed(2);
-      if (anyHalfwordMemDisabled(STI)) {
-        MemBytes = TypeSize::getFixed(4);
-      }
-    }
-    // *PBH*: End
     break;
   case RISCV::SH:
-    // *PBH*: If the two-byte SH is not available, use 4-byte SW.
-    MemBytes = TypeSize::getFixed(2);
-    if (anyHalfwordMemDisabled(STI)) {
-      MemBytes = TypeSize::getFixed(4);
-    }
-    // *PBH*: End
-    break;
   case RISCV::SH_INX:
   case RISCV::FSH:
     MemBytes = TypeSize::getFixed(2);
@@ -916,19 +822,19 @@ std::optional<unsigned> getFoldedOpcode(MachineFunction &MF, MachineInstr &MI,
   switch (MI.getOpcode()) {
   default:
     if (RISCVInstrInfo::isSEXT_W(MI))
-      return loadSigned(4, ST);
+      return RISCV::LW;
     if (RISCVInstrInfo::isZEXT_W(MI))
-      return loadUnsigned(4, ST);
+      return RISCV::LWU;
     if (RISCVInstrInfo::isZEXT_B(MI))
-      return loadUnsigned(1, ST);
+      return RISCV::LBU;
     break;
   case RISCV::SEXT_H:
-    return loadSigned(2, ST);
+    return RISCV::LH;
   case RISCV::SEXT_B:
-    return loadSigned(1, ST);
+    return RISCV::LB;
   case RISCV::ZEXT_H_RV32:
   case RISCV::ZEXT_H_RV64:
-    return loadUnsigned(2, ST);
+    return RISCV::LHU;
   }
 
   switch (RISCV::getRVVMCOpcode(MI.getOpcode())) {
@@ -941,13 +847,13 @@ std::optional<unsigned> getFoldedOpcode(MachineFunction &MF, MachineInstr &MI,
       return std::nullopt;
     switch (Log2SEW) {
     case 3:
-      return loadSigned(1, ST); // was: RISCV::LB
+      return RISCV::LB;
     case 4:
-      return loadSigned(2, ST); // was: RISCV::LH
+      return RISCV::LH;
     case 5:
-      return loadSigned(4, ST); // was: RISCV::LW
+      return RISCV::LW;
     case 6:
-      return loadSigned(8, ST); // was: RISCV::LD
+      return RISCV::LD;
     default:
       llvm_unreachable("Unexpected SEW");
     }
@@ -1453,7 +1359,6 @@ void RISCVInstrInfo::insertIndirectBranch(MachineBasicBlock &MBB,
 bool RISCVInstrInfo::reverseBranchCondition(
     SmallVectorImpl<MachineOperand> &Cond) const {
   assert((Cond.size() == 3) && "Invalid branch condition!");
-
   switch (Cond[0].getImm()) {
   default:
     llvm_unreachable("Unknown conditional branch!");

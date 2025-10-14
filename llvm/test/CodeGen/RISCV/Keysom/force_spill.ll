@@ -10,9 +10,10 @@
 ; RUN:   -mattr=+xkeysomnolhu < %s | FileCheck -check-prefixes=NOLHU %s
 ; RUN: llc -mtriple=riscv32 -riscv-no-aliases -verify-machineinstrs \
 ; RUN:   -mattr=+xkeysomnolb \
+; RUN:   -mattr=+xkeysomnolh < %s | FileCheck -check-prefixes=NOL %s
+; RUN: llc -mtriple=riscv32 -riscv-no-aliases -verify-machineinstrs \
 ; RUN:   -mattr=+xkeysomnolbu \
-; RUN:   -mattr=+xkeysomnolh \
-; RUN:   -mattr=+xkeysomnolhu < %s | FileCheck -check-prefixes=NOL %s
+; RUN:   -mattr=+xkeysomnolhu < %s | FileCheck -check-prefixes=NOLU %s
 
 ; force_spill.ll — create many independent volatile values used after a call
 ; Each @vN is an externally defined volatile source so loads can't be folded away.
@@ -395,180 +396,80 @@ define i16 @force_spill(i16 %x) nounwind {
 ; NOLH-NEXT:    lui t3, %hi(v11)
 ; NOLH-NEXT:    lui t4, %hi(v12)
 ; NOLH-NEXT:    lui t5, %hi(v13)
-; NOLH-NEXT:    lui s0, %hi(v14)
-; NOLH-NEXT:    lui s2, %hi(v15)
-; NOLH-NEXT:    lui s4, %hi(v16)
-; NOLH-NEXT:    lui s5, %hi(v17)
-; NOLH-NEXT:    lui s6, %hi(v18)
-; NOLH-NEXT:    lui s7, %hi(v19)
-; NOLH-NEXT:    addi s8, a0, %lo(v0)
-; NOLH-NEXT:    addi a1, a1, %lo(v1)
-; NOLH-NEXT:    addi s9, a2, %lo(v2)
-; NOLH-NEXT:    addi s10, a3, %lo(v3)
-; NOLH-NEXT:    addi s11, a4, %lo(v4)
-; NOLH-NEXT:    addi ra, a5, %lo(v5)
-; NOLH-NEXT:    addi a3, a6, %lo(v6)
-; NOLH-NEXT:    addi a5, a7, %lo(v7)
-; NOLH-NEXT:    addi a7, t0, %lo(v8)
-; NOLH-NEXT:    addi t1, t1, %lo(v9)
-; NOLH-NEXT:    addi s3, t2, %lo(v10)
-; NOLH-NEXT:    addi s1, t3, %lo(v11)
-; NOLH-NEXT:    addi t6, t4, %lo(v12)
-; NOLH-NEXT:    addi t4, t5, %lo(v13)
-; NOLH-NEXT:    addi t2, s0, %lo(v14)
-; NOLH-NEXT:    addi t0, s2, %lo(v15)
-; NOLH-NEXT:    addi a6, s4, %lo(v16)
-; NOLH-NEXT:    addi a4, s5, %lo(v17)
-; NOLH-NEXT:    addi a2, s6, %lo(v18)
-; NOLH-NEXT:    addi a0, s7, %lo(v19)
-; NOLH-NEXT:    andi t3, s8, -4
-; NOLH-NEXT:    andi t5, a1, -4
-; NOLH-NEXT:    sub s0, s8, t3
-; NOLH-NEXT:    lw t3, 0(t3)
-; NOLH-NEXT:    sub s2, a1, t5
-; NOLH-NEXT:    lw t5, 0(t5)
-; NOLH-NEXT:    slli s0, s0, 3
-; NOLH-NEXT:    srl a1, t3, s0
-; NOLH-NEXT:    andi t3, s9, -4
-; NOLH-NEXT:    slli s2, s2, 3
-; NOLH-NEXT:    srl s5, t5, s2
-; NOLH-NEXT:    andi t5, s10, -4
-; NOLH-NEXT:    sub s0, s9, t3
-; NOLH-NEXT:    lw t3, 0(t3)
-; NOLH-NEXT:    sub s2, s10, t5
-; NOLH-NEXT:    lw t5, 0(t5)
-; NOLH-NEXT:    slli s0, s0, 3
-; NOLH-NEXT:    srl s6, t3, s0
-; NOLH-NEXT:    andi t3, s11, -4
-; NOLH-NEXT:    slli s2, s2, 3
-; NOLH-NEXT:    srl s7, t5, s2
-; NOLH-NEXT:    andi t5, ra, -4
-; NOLH-NEXT:    sub s0, s11, t3
-; NOLH-NEXT:    lw t3, 0(t3)
-; NOLH-NEXT:    sub s2, ra, t5
-; NOLH-NEXT:    lw t5, 0(t5)
-; NOLH-NEXT:    slli s0, s0, 3
-; NOLH-NEXT:    srl s8, t3, s0
-; NOLH-NEXT:    andi s0, a3, -4
-; NOLH-NEXT:    slli s2, s2, 3
-; NOLH-NEXT:    srl t3, t5, s2
-; NOLH-NEXT:    andi t5, a5, -4
-; NOLH-NEXT:    sub a3, a3, s0
-; NOLH-NEXT:    lw s0, 0(s0)
-; NOLH-NEXT:    sub a5, a5, t5
-; NOLH-NEXT:    lw s2, 0(t5)
-; NOLH-NEXT:    slli a3, a3, 3
-; NOLH-NEXT:    srl t5, s0, a3
-; NOLH-NEXT:    andi a3, a7, -4
-; NOLH-NEXT:    slli a5, a5, 3
-; NOLH-NEXT:    srl s0, s2, a5
-; NOLH-NEXT:    andi a5, t1, -4
-; NOLH-NEXT:    sub a7, a7, a3
-; NOLH-NEXT:    lw a3, 0(a3)
-; NOLH-NEXT:    sub t1, t1, a5
-; NOLH-NEXT:    lw a5, 0(a5)
-; NOLH-NEXT:    slli a7, a7, 3
-; NOLH-NEXT:    srl s2, a3, a7
-; NOLH-NEXT:    andi a3, s3, -4
-; NOLH-NEXT:    slli t1, t1, 3
-; NOLH-NEXT:    srl s4, a5, t1
-; NOLH-NEXT:    andi a5, s1, -4
-; NOLH-NEXT:    sub a7, s3, a3
-; NOLH-NEXT:    lw a3, 0(a3)
-; NOLH-NEXT:    sub s1, s1, a5
-; NOLH-NEXT:    lw a5, 0(a5)
-; NOLH-NEXT:    slli a7, a7, 3
-; NOLH-NEXT:    srl a3, a3, a7
-; NOLH-NEXT:    andi a7, t6, -4
-; NOLH-NEXT:    slli s1, s1, 3
-; NOLH-NEXT:    srl a5, a5, s1
-; NOLH-NEXT:    andi t1, t4, -4
-; NOLH-NEXT:    sub t6, t6, a7
-; NOLH-NEXT:    lw a7, 0(a7)
-; NOLH-NEXT:    sub t4, t4, t1
-; NOLH-NEXT:    lw t1, 0(t1)
-; NOLH-NEXT:    slli t6, t6, 3
-; NOLH-NEXT:    srl a7, a7, t6
-; NOLH-NEXT:    andi t6, t2, -4
-; NOLH-NEXT:    slli t4, t4, 3
-; NOLH-NEXT:    srl t1, t1, t4
-; NOLH-NEXT:    andi t4, t0, -4
-; NOLH-NEXT:    sub t2, t2, t6
-; NOLH-NEXT:    lw t6, 0(t6)
-; NOLH-NEXT:    sub t0, t0, t4
-; NOLH-NEXT:    lw t4, 0(t4)
-; NOLH-NEXT:    slli t2, t2, 3
-; NOLH-NEXT:    srl t2, t6, t2
-; NOLH-NEXT:    andi t6, a6, -4
-; NOLH-NEXT:    slli t0, t0, 3
-; NOLH-NEXT:    srl t0, t4, t0
-; NOLH-NEXT:    andi t4, a4, -4
-; NOLH-NEXT:    sub a6, a6, t6
-; NOLH-NEXT:    lw t6, 0(t6)
-; NOLH-NEXT:    sub a4, a4, t4
-; NOLH-NEXT:    lw t4, 0(t4)
-; NOLH-NEXT:    slli a6, a6, 3
-; NOLH-NEXT:    srl a6, t6, a6
-; NOLH-NEXT:    andi t6, a2, -4
-; NOLH-NEXT:    slli a4, a4, 3
-; NOLH-NEXT:    srl a4, t4, a4
-; NOLH-NEXT:    andi t4, a0, -4
-; NOLH-NEXT:    sub a2, a2, t6
-; NOLH-NEXT:    lw t6, 0(t6)
-; NOLH-NEXT:    sub a0, a0, t4
-; NOLH-NEXT:    lw t4, 0(t4)
-; NOLH-NEXT:    slli a2, a2, 3
-; NOLH-NEXT:    slli a0, a0, 3
-; NOLH-NEXT:    srl a2, t6, a2
-; NOLH-NEXT:    srl a0, t4, a0
+; NOLH-NEXT:    lui t6, %hi(v14)
+; NOLH-NEXT:    lui s0, %hi(v15)
+; NOLH-NEXT:    lui s1, %hi(v16)
+; NOLH-NEXT:    lui s2, %hi(v17)
+; NOLH-NEXT:    lui s3, %hi(v18)
+; NOLH-NEXT:    lui s4, %hi(v19)
+; NOLH-NEXT:    lhu a0, %lo(v0)(a0)
+; NOLH-NEXT:    lhu a1, %lo(v1)(a1)
+; NOLH-NEXT:    lhu a2, %lo(v2)(a2)
+; NOLH-NEXT:    lhu a3, %lo(v3)(a3)
+; NOLH-NEXT:    lhu a4, %lo(v4)(a4)
+; NOLH-NEXT:    lhu a5, %lo(v5)(a5)
+; NOLH-NEXT:    lhu a6, %lo(v6)(a6)
+; NOLH-NEXT:    lhu a7, %lo(v7)(a7)
+; NOLH-NEXT:    lhu t0, %lo(v8)(t0)
+; NOLH-NEXT:    lhu t1, %lo(v9)(t1)
+; NOLH-NEXT:    lhu t2, %lo(v10)(t2)
+; NOLH-NEXT:    lhu t3, %lo(v11)(t3)
+; NOLH-NEXT:    lhu t4, %lo(v12)(t4)
+; NOLH-NEXT:    lhu t5, %lo(v13)(t5)
+; NOLH-NEXT:    lhu t6, %lo(v14)(t6)
+; NOLH-NEXT:    lhu s0, %lo(v15)(s0)
+; NOLH-NEXT:    lhu s1, %lo(v16)(s1)
+; NOLH-NEXT:    lhu s2, %lo(v17)(s2)
+; NOLH-NEXT:    lhu s3, %lo(v18)(s3)
+; NOLH-NEXT:    lhu s4, %lo(v19)(s4)
+; NOLH-NEXT:    slli a0, a0, 16
 ; NOLH-NEXT:    slli a1, a1, 16
-; NOLH-NEXT:    slli s5, s5, 16
-; NOLH-NEXT:    slli s6, s6, 16
-; NOLH-NEXT:    slli s7, s7, 16
-; NOLH-NEXT:    slli s8, s8, 16
-; NOLH-NEXT:    slli t3, t3, 16
-; NOLH-NEXT:    slli t5, t5, 16
-; NOLH-NEXT:    slli s0, s0, 16
-; NOLH-NEXT:    slli s2, s2, 16
-; NOLH-NEXT:    slli s4, s4, 16
+; NOLH-NEXT:    slli a2, a2, 16
 ; NOLH-NEXT:    slli a3, a3, 16
+; NOLH-NEXT:    slli a4, a4, 16
 ; NOLH-NEXT:    slli a5, a5, 16
+; NOLH-NEXT:    slli a6, a6, 16
 ; NOLH-NEXT:    slli a7, a7, 16
+; NOLH-NEXT:    slli t0, t0, 16
 ; NOLH-NEXT:    slli t1, t1, 16
 ; NOLH-NEXT:    slli t2, t2, 16
-; NOLH-NEXT:    slli t0, t0, 16
-; NOLH-NEXT:    slli a6, a6, 16
-; NOLH-NEXT:    slli a4, a4, 16
-; NOLH-NEXT:    slli a2, a2, 16
-; NOLH-NEXT:    slli a0, a0, 16
+; NOLH-NEXT:    slli t3, t3, 16
+; NOLH-NEXT:    slli t4, t4, 16
+; NOLH-NEXT:    slli t5, t5, 16
+; NOLH-NEXT:    slli t6, t6, 16
+; NOLH-NEXT:    slli ra, s0, 16
+; NOLH-NEXT:    slli s1, s1, 16
+; NOLH-NEXT:    slli s2, s2, 16
+; NOLH-NEXT:    slli s3, s3, 16
+; NOLH-NEXT:    slli s4, s4, 16
+; NOLH-NEXT:    srai a0, a0, 16
+; NOLH-NEXT:    sw a0, 40(sp) # 4-byte Folded Spill
 ; NOLH-NEXT:    srai a1, a1, 16
-; NOLH-NEXT:    sw a1, 40(sp) # 4-byte Folded Spill
-; NOLH-NEXT:    srai a1, s5, 16
 ; NOLH-NEXT:    sw a1, 36(sp) # 4-byte Folded Spill
-; NOLH-NEXT:    srai a1, s6, 16
-; NOLH-NEXT:    sw a1, 32(sp) # 4-byte Folded Spill
-; NOLH-NEXT:    srai a1, s7, 16
-; NOLH-NEXT:    sw a1, 28(sp) # 4-byte Folded Spill
-; NOLH-NEXT:    srai a1, s8, 16
-; NOLH-NEXT:    sw a1, 24(sp) # 4-byte Folded Spill
-; NOLH-NEXT:    srai a1, t3, 16
-; NOLH-NEXT:    sw a1, 20(sp) # 4-byte Folded Spill
-; NOLH-NEXT:    srai a1, t5, 16
-; NOLH-NEXT:    sw a1, 16(sp) # 4-byte Folded Spill
-; NOLH-NEXT:    srai s0, s0, 16
-; NOLH-NEXT:    sw s0, 12(sp) # 4-byte Folded Spill
-; NOLH-NEXT:    srai s2, s2, 16
-; NOLH-NEXT:    srai s4, s4, 16
-; NOLH-NEXT:    srai s10, a3, 16
-; NOLH-NEXT:    srai s11, a5, 16
-; NOLH-NEXT:    srai s1, a7, 16
-; NOLH-NEXT:    srai s3, t1, 16
-; NOLH-NEXT:    srai s5, t2, 16
+; NOLH-NEXT:    srai a2, a2, 16
+; NOLH-NEXT:    sw a2, 32(sp) # 4-byte Folded Spill
+; NOLH-NEXT:    srai a3, a3, 16
+; NOLH-NEXT:    sw a3, 28(sp) # 4-byte Folded Spill
+; NOLH-NEXT:    srai a4, a4, 16
+; NOLH-NEXT:    sw a4, 24(sp) # 4-byte Folded Spill
+; NOLH-NEXT:    srai a5, a5, 16
+; NOLH-NEXT:    sw a5, 20(sp) # 4-byte Folded Spill
+; NOLH-NEXT:    srai a0, a6, 16
+; NOLH-NEXT:    sw a0, 16(sp) # 4-byte Folded Spill
+; NOLH-NEXT:    srai a0, a7, 16
+; NOLH-NEXT:    sw a0, 12(sp) # 4-byte Folded Spill
 ; NOLH-NEXT:    srai s6, t0, 16
-; NOLH-NEXT:    srai s7, a6, 16
-; NOLH-NEXT:    srai s8, a4, 16
-; NOLH-NEXT:    srai s9, a2, 16
-; NOLH-NEXT:    srai s0, a0, 16
+; NOLH-NEXT:    srai s7, t1, 16
+; NOLH-NEXT:    srai s8, t2, 16
+; NOLH-NEXT:    srai s9, t3, 16
+; NOLH-NEXT:    srai s0, t4, 16
+; NOLH-NEXT:    srai s10, t5, 16
+; NOLH-NEXT:    srai s11, t6, 16
+; NOLH-NEXT:    srai s5, ra, 16
+; NOLH-NEXT:    srai s1, s1, 16
+; NOLH-NEXT:    srai s2, s2, 16
+; NOLH-NEXT:    srai s3, s3, 16
+; NOLH-NEXT:    srai s4, s4, 16
 ; NOLH-NEXT:    call clobber
 ; NOLH-NEXT:    lw a0, 40(sp) # 4-byte Folded Reload
 ; NOLH-NEXT:    lw a1, 36(sp) # 4-byte Folded Reload
@@ -582,21 +483,21 @@ define i16 @force_spill(i16 %x) nounwind {
 ; NOLH-NEXT:    lw a3, 16(sp) # 4-byte Folded Reload
 ; NOLH-NEXT:    lw a4, 12(sp) # 4-byte Folded Reload
 ; NOLH-NEXT:    add a3, a3, a4
-; NOLH-NEXT:    add s2, s2, s4
-; NOLH-NEXT:    add s10, s10, s11
-; NOLH-NEXT:    add s1, s1, s3
-; NOLH-NEXT:    add s5, s5, s6
-; NOLH-NEXT:    add s7, s7, s8
-; NOLH-NEXT:    add s0, s9, s0
+; NOLH-NEXT:    add s6, s6, s7
+; NOLH-NEXT:    add s8, s8, s9
+; NOLH-NEXT:    add s0, s0, s10
+; NOLH-NEXT:    add s5, s11, s5
+; NOLH-NEXT:    add s1, s1, s2
+; NOLH-NEXT:    add s3, s3, s4
 ; NOLH-NEXT:    add a0, a0, a1
 ; NOLH-NEXT:    add a2, a2, a3
-; NOLH-NEXT:    add s2, s2, s10
-; NOLH-NEXT:    add s1, s1, s5
-; NOLH-NEXT:    add s0, s7, s0
+; NOLH-NEXT:    add s6, s6, s8
+; NOLH-NEXT:    add s0, s0, s5
+; NOLH-NEXT:    add s1, s1, s3
 ; NOLH-NEXT:    add a0, a0, a2
-; NOLH-NEXT:    add s1, s2, s1
-; NOLH-NEXT:    add a0, a0, s1
+; NOLH-NEXT:    add s0, s6, s0
 ; NOLH-NEXT:    add a0, a0, s0
+; NOLH-NEXT:    add a0, a0, s1
 ; NOLH-NEXT:    lw ra, 92(sp) # 4-byte Folded Reload
 ; NOLH-NEXT:    lw s0, 88(sp) # 4-byte Folded Reload
 ; NOLH-NEXT:    lw s1, 84(sp) # 4-byte Folded Reload
@@ -751,180 +652,80 @@ define i16 @force_spill(i16 %x) nounwind {
 ; NOL-NEXT:    lui t3, %hi(v11)
 ; NOL-NEXT:    lui t4, %hi(v12)
 ; NOL-NEXT:    lui t5, %hi(v13)
-; NOL-NEXT:    lui s0, %hi(v14)
-; NOL-NEXT:    lui s2, %hi(v15)
-; NOL-NEXT:    lui s4, %hi(v16)
-; NOL-NEXT:    lui s5, %hi(v17)
-; NOL-NEXT:    lui s6, %hi(v18)
-; NOL-NEXT:    lui s7, %hi(v19)
-; NOL-NEXT:    addi s8, a0, %lo(v0)
-; NOL-NEXT:    addi a1, a1, %lo(v1)
-; NOL-NEXT:    addi s9, a2, %lo(v2)
-; NOL-NEXT:    addi s10, a3, %lo(v3)
-; NOL-NEXT:    addi s11, a4, %lo(v4)
-; NOL-NEXT:    addi ra, a5, %lo(v5)
-; NOL-NEXT:    addi a3, a6, %lo(v6)
-; NOL-NEXT:    addi a5, a7, %lo(v7)
-; NOL-NEXT:    addi a7, t0, %lo(v8)
-; NOL-NEXT:    addi t1, t1, %lo(v9)
-; NOL-NEXT:    addi s3, t2, %lo(v10)
-; NOL-NEXT:    addi s1, t3, %lo(v11)
-; NOL-NEXT:    addi t6, t4, %lo(v12)
-; NOL-NEXT:    addi t4, t5, %lo(v13)
-; NOL-NEXT:    addi t2, s0, %lo(v14)
-; NOL-NEXT:    addi t0, s2, %lo(v15)
-; NOL-NEXT:    addi a6, s4, %lo(v16)
-; NOL-NEXT:    addi a4, s5, %lo(v17)
-; NOL-NEXT:    addi a2, s6, %lo(v18)
-; NOL-NEXT:    addi a0, s7, %lo(v19)
-; NOL-NEXT:    andi t3, s8, -4
-; NOL-NEXT:    andi t5, a1, -4
-; NOL-NEXT:    sub s0, s8, t3
-; NOL-NEXT:    lw t3, 0(t3)
-; NOL-NEXT:    sub s2, a1, t5
-; NOL-NEXT:    lw t5, 0(t5)
-; NOL-NEXT:    slli s0, s0, 3
-; NOL-NEXT:    srl a1, t3, s0
-; NOL-NEXT:    andi t3, s9, -4
-; NOL-NEXT:    slli s2, s2, 3
-; NOL-NEXT:    srl s5, t5, s2
-; NOL-NEXT:    andi t5, s10, -4
-; NOL-NEXT:    sub s0, s9, t3
-; NOL-NEXT:    lw t3, 0(t3)
-; NOL-NEXT:    sub s2, s10, t5
-; NOL-NEXT:    lw t5, 0(t5)
-; NOL-NEXT:    slli s0, s0, 3
-; NOL-NEXT:    srl s6, t3, s0
-; NOL-NEXT:    andi t3, s11, -4
-; NOL-NEXT:    slli s2, s2, 3
-; NOL-NEXT:    srl s7, t5, s2
-; NOL-NEXT:    andi t5, ra, -4
-; NOL-NEXT:    sub s0, s11, t3
-; NOL-NEXT:    lw t3, 0(t3)
-; NOL-NEXT:    sub s2, ra, t5
-; NOL-NEXT:    lw t5, 0(t5)
-; NOL-NEXT:    slli s0, s0, 3
-; NOL-NEXT:    srl s8, t3, s0
-; NOL-NEXT:    andi s0, a3, -4
-; NOL-NEXT:    slli s2, s2, 3
-; NOL-NEXT:    srl t3, t5, s2
-; NOL-NEXT:    andi t5, a5, -4
-; NOL-NEXT:    sub a3, a3, s0
-; NOL-NEXT:    lw s0, 0(s0)
-; NOL-NEXT:    sub a5, a5, t5
-; NOL-NEXT:    lw s2, 0(t5)
-; NOL-NEXT:    slli a3, a3, 3
-; NOL-NEXT:    srl t5, s0, a3
-; NOL-NEXT:    andi a3, a7, -4
-; NOL-NEXT:    slli a5, a5, 3
-; NOL-NEXT:    srl s0, s2, a5
-; NOL-NEXT:    andi a5, t1, -4
-; NOL-NEXT:    sub a7, a7, a3
-; NOL-NEXT:    lw a3, 0(a3)
-; NOL-NEXT:    sub t1, t1, a5
-; NOL-NEXT:    lw a5, 0(a5)
-; NOL-NEXT:    slli a7, a7, 3
-; NOL-NEXT:    srl s2, a3, a7
-; NOL-NEXT:    andi a3, s3, -4
-; NOL-NEXT:    slli t1, t1, 3
-; NOL-NEXT:    srl s4, a5, t1
-; NOL-NEXT:    andi a5, s1, -4
-; NOL-NEXT:    sub a7, s3, a3
-; NOL-NEXT:    lw a3, 0(a3)
-; NOL-NEXT:    sub s1, s1, a5
-; NOL-NEXT:    lw a5, 0(a5)
-; NOL-NEXT:    slli a7, a7, 3
-; NOL-NEXT:    srl a3, a3, a7
-; NOL-NEXT:    andi a7, t6, -4
-; NOL-NEXT:    slli s1, s1, 3
-; NOL-NEXT:    srl a5, a5, s1
-; NOL-NEXT:    andi t1, t4, -4
-; NOL-NEXT:    sub t6, t6, a7
-; NOL-NEXT:    lw a7, 0(a7)
-; NOL-NEXT:    sub t4, t4, t1
-; NOL-NEXT:    lw t1, 0(t1)
-; NOL-NEXT:    slli t6, t6, 3
-; NOL-NEXT:    srl a7, a7, t6
-; NOL-NEXT:    andi t6, t2, -4
-; NOL-NEXT:    slli t4, t4, 3
-; NOL-NEXT:    srl t1, t1, t4
-; NOL-NEXT:    andi t4, t0, -4
-; NOL-NEXT:    sub t2, t2, t6
-; NOL-NEXT:    lw t6, 0(t6)
-; NOL-NEXT:    sub t0, t0, t4
-; NOL-NEXT:    lw t4, 0(t4)
-; NOL-NEXT:    slli t2, t2, 3
-; NOL-NEXT:    srl t2, t6, t2
-; NOL-NEXT:    andi t6, a6, -4
-; NOL-NEXT:    slli t0, t0, 3
-; NOL-NEXT:    srl t0, t4, t0
-; NOL-NEXT:    andi t4, a4, -4
-; NOL-NEXT:    sub a6, a6, t6
-; NOL-NEXT:    lw t6, 0(t6)
-; NOL-NEXT:    sub a4, a4, t4
-; NOL-NEXT:    lw t4, 0(t4)
-; NOL-NEXT:    slli a6, a6, 3
-; NOL-NEXT:    srl a6, t6, a6
-; NOL-NEXT:    andi t6, a2, -4
-; NOL-NEXT:    slli a4, a4, 3
-; NOL-NEXT:    srl a4, t4, a4
-; NOL-NEXT:    andi t4, a0, -4
-; NOL-NEXT:    sub a2, a2, t6
-; NOL-NEXT:    lw t6, 0(t6)
-; NOL-NEXT:    sub a0, a0, t4
-; NOL-NEXT:    lw t4, 0(t4)
-; NOL-NEXT:    slli a2, a2, 3
-; NOL-NEXT:    slli a0, a0, 3
-; NOL-NEXT:    srl a2, t6, a2
-; NOL-NEXT:    srl a0, t4, a0
+; NOL-NEXT:    lui t6, %hi(v14)
+; NOL-NEXT:    lui s0, %hi(v15)
+; NOL-NEXT:    lui s1, %hi(v16)
+; NOL-NEXT:    lui s2, %hi(v17)
+; NOL-NEXT:    lui s3, %hi(v18)
+; NOL-NEXT:    lui s4, %hi(v19)
+; NOL-NEXT:    lhu a0, %lo(v0)(a0)
+; NOL-NEXT:    lhu a1, %lo(v1)(a1)
+; NOL-NEXT:    lhu a2, %lo(v2)(a2)
+; NOL-NEXT:    lhu a3, %lo(v3)(a3)
+; NOL-NEXT:    lhu a4, %lo(v4)(a4)
+; NOL-NEXT:    lhu a5, %lo(v5)(a5)
+; NOL-NEXT:    lhu a6, %lo(v6)(a6)
+; NOL-NEXT:    lhu a7, %lo(v7)(a7)
+; NOL-NEXT:    lhu t0, %lo(v8)(t0)
+; NOL-NEXT:    lhu t1, %lo(v9)(t1)
+; NOL-NEXT:    lhu t2, %lo(v10)(t2)
+; NOL-NEXT:    lhu t3, %lo(v11)(t3)
+; NOL-NEXT:    lhu t4, %lo(v12)(t4)
+; NOL-NEXT:    lhu t5, %lo(v13)(t5)
+; NOL-NEXT:    lhu t6, %lo(v14)(t6)
+; NOL-NEXT:    lhu s0, %lo(v15)(s0)
+; NOL-NEXT:    lhu s1, %lo(v16)(s1)
+; NOL-NEXT:    lhu s2, %lo(v17)(s2)
+; NOL-NEXT:    lhu s3, %lo(v18)(s3)
+; NOL-NEXT:    lhu s4, %lo(v19)(s4)
+; NOL-NEXT:    slli a0, a0, 16
 ; NOL-NEXT:    slli a1, a1, 16
-; NOL-NEXT:    slli s5, s5, 16
-; NOL-NEXT:    slli s6, s6, 16
-; NOL-NEXT:    slli s7, s7, 16
-; NOL-NEXT:    slli s8, s8, 16
-; NOL-NEXT:    slli t3, t3, 16
-; NOL-NEXT:    slli t5, t5, 16
-; NOL-NEXT:    slli s0, s0, 16
-; NOL-NEXT:    slli s2, s2, 16
-; NOL-NEXT:    slli s4, s4, 16
+; NOL-NEXT:    slli a2, a2, 16
 ; NOL-NEXT:    slli a3, a3, 16
+; NOL-NEXT:    slli a4, a4, 16
 ; NOL-NEXT:    slli a5, a5, 16
+; NOL-NEXT:    slli a6, a6, 16
 ; NOL-NEXT:    slli a7, a7, 16
+; NOL-NEXT:    slli t0, t0, 16
 ; NOL-NEXT:    slli t1, t1, 16
 ; NOL-NEXT:    slli t2, t2, 16
-; NOL-NEXT:    slli t0, t0, 16
-; NOL-NEXT:    slli a6, a6, 16
-; NOL-NEXT:    slli a4, a4, 16
-; NOL-NEXT:    slli a2, a2, 16
-; NOL-NEXT:    slli a0, a0, 16
+; NOL-NEXT:    slli t3, t3, 16
+; NOL-NEXT:    slli t4, t4, 16
+; NOL-NEXT:    slli t5, t5, 16
+; NOL-NEXT:    slli t6, t6, 16
+; NOL-NEXT:    slli ra, s0, 16
+; NOL-NEXT:    slli s1, s1, 16
+; NOL-NEXT:    slli s2, s2, 16
+; NOL-NEXT:    slli s3, s3, 16
+; NOL-NEXT:    slli s4, s4, 16
+; NOL-NEXT:    srai a0, a0, 16
+; NOL-NEXT:    sw a0, 40(sp) # 4-byte Folded Spill
 ; NOL-NEXT:    srai a1, a1, 16
-; NOL-NEXT:    sw a1, 40(sp) # 4-byte Folded Spill
-; NOL-NEXT:    srai a1, s5, 16
 ; NOL-NEXT:    sw a1, 36(sp) # 4-byte Folded Spill
-; NOL-NEXT:    srai a1, s6, 16
-; NOL-NEXT:    sw a1, 32(sp) # 4-byte Folded Spill
-; NOL-NEXT:    srai a1, s7, 16
-; NOL-NEXT:    sw a1, 28(sp) # 4-byte Folded Spill
-; NOL-NEXT:    srai a1, s8, 16
-; NOL-NEXT:    sw a1, 24(sp) # 4-byte Folded Spill
-; NOL-NEXT:    srai a1, t3, 16
-; NOL-NEXT:    sw a1, 20(sp) # 4-byte Folded Spill
-; NOL-NEXT:    srai a1, t5, 16
-; NOL-NEXT:    sw a1, 16(sp) # 4-byte Folded Spill
-; NOL-NEXT:    srai s0, s0, 16
-; NOL-NEXT:    sw s0, 12(sp) # 4-byte Folded Spill
-; NOL-NEXT:    srai s2, s2, 16
-; NOL-NEXT:    srai s4, s4, 16
-; NOL-NEXT:    srai s10, a3, 16
-; NOL-NEXT:    srai s11, a5, 16
-; NOL-NEXT:    srai s1, a7, 16
-; NOL-NEXT:    srai s3, t1, 16
-; NOL-NEXT:    srai s5, t2, 16
+; NOL-NEXT:    srai a2, a2, 16
+; NOL-NEXT:    sw a2, 32(sp) # 4-byte Folded Spill
+; NOL-NEXT:    srai a3, a3, 16
+; NOL-NEXT:    sw a3, 28(sp) # 4-byte Folded Spill
+; NOL-NEXT:    srai a4, a4, 16
+; NOL-NEXT:    sw a4, 24(sp) # 4-byte Folded Spill
+; NOL-NEXT:    srai a5, a5, 16
+; NOL-NEXT:    sw a5, 20(sp) # 4-byte Folded Spill
+; NOL-NEXT:    srai a0, a6, 16
+; NOL-NEXT:    sw a0, 16(sp) # 4-byte Folded Spill
+; NOL-NEXT:    srai a0, a7, 16
+; NOL-NEXT:    sw a0, 12(sp) # 4-byte Folded Spill
 ; NOL-NEXT:    srai s6, t0, 16
-; NOL-NEXT:    srai s7, a6, 16
-; NOL-NEXT:    srai s8, a4, 16
-; NOL-NEXT:    srai s9, a2, 16
-; NOL-NEXT:    srai s0, a0, 16
+; NOL-NEXT:    srai s7, t1, 16
+; NOL-NEXT:    srai s8, t2, 16
+; NOL-NEXT:    srai s9, t3, 16
+; NOL-NEXT:    srai s0, t4, 16
+; NOL-NEXT:    srai s10, t5, 16
+; NOL-NEXT:    srai s11, t6, 16
+; NOL-NEXT:    srai s5, ra, 16
+; NOL-NEXT:    srai s1, s1, 16
+; NOL-NEXT:    srai s2, s2, 16
+; NOL-NEXT:    srai s3, s3, 16
+; NOL-NEXT:    srai s4, s4, 16
 ; NOL-NEXT:    call clobber
 ; NOL-NEXT:    lw a0, 40(sp) # 4-byte Folded Reload
 ; NOL-NEXT:    lw a1, 36(sp) # 4-byte Folded Reload
@@ -938,21 +739,21 @@ define i16 @force_spill(i16 %x) nounwind {
 ; NOL-NEXT:    lw a3, 16(sp) # 4-byte Folded Reload
 ; NOL-NEXT:    lw a4, 12(sp) # 4-byte Folded Reload
 ; NOL-NEXT:    add a3, a3, a4
-; NOL-NEXT:    add s2, s2, s4
-; NOL-NEXT:    add s10, s10, s11
-; NOL-NEXT:    add s1, s1, s3
-; NOL-NEXT:    add s5, s5, s6
-; NOL-NEXT:    add s7, s7, s8
-; NOL-NEXT:    add s0, s9, s0
+; NOL-NEXT:    add s6, s6, s7
+; NOL-NEXT:    add s8, s8, s9
+; NOL-NEXT:    add s0, s0, s10
+; NOL-NEXT:    add s5, s11, s5
+; NOL-NEXT:    add s1, s1, s2
+; NOL-NEXT:    add s3, s3, s4
 ; NOL-NEXT:    add a0, a0, a1
 ; NOL-NEXT:    add a2, a2, a3
-; NOL-NEXT:    add s2, s2, s10
-; NOL-NEXT:    add s1, s1, s5
-; NOL-NEXT:    add s0, s7, s0
+; NOL-NEXT:    add s6, s6, s8
+; NOL-NEXT:    add s0, s0, s5
+; NOL-NEXT:    add s1, s1, s3
 ; NOL-NEXT:    add a0, a0, a2
-; NOL-NEXT:    add s1, s2, s1
-; NOL-NEXT:    add a0, a0, s1
+; NOL-NEXT:    add s0, s6, s0
 ; NOL-NEXT:    add a0, a0, s0
+; NOL-NEXT:    add a0, a0, s1
 ; NOL-NEXT:    lw ra, 92(sp) # 4-byte Folded Reload
 ; NOL-NEXT:    lw s0, 88(sp) # 4-byte Folded Reload
 ; NOL-NEXT:    lw s1, 84(sp) # 4-byte Folded Reload
@@ -968,6 +769,114 @@ define i16 @force_spill(i16 %x) nounwind {
 ; NOL-NEXT:    lw s11, 44(sp) # 4-byte Folded Reload
 ; NOL-NEXT:    addi sp, sp, 96
 ; NOL-NEXT:    jalr zero, 0(ra)
+;
+; NOLU-LABEL: force_spill:
+; NOLU:       # %bb.0: # %entry
+; NOLU-NEXT:    addi sp, sp, -96
+; NOLU-NEXT:    sw ra, 92(sp) # 4-byte Folded Spill
+; NOLU-NEXT:    sw s0, 88(sp) # 4-byte Folded Spill
+; NOLU-NEXT:    sw s1, 84(sp) # 4-byte Folded Spill
+; NOLU-NEXT:    sw s2, 80(sp) # 4-byte Folded Spill
+; NOLU-NEXT:    sw s3, 76(sp) # 4-byte Folded Spill
+; NOLU-NEXT:    sw s4, 72(sp) # 4-byte Folded Spill
+; NOLU-NEXT:    sw s5, 68(sp) # 4-byte Folded Spill
+; NOLU-NEXT:    sw s6, 64(sp) # 4-byte Folded Spill
+; NOLU-NEXT:    sw s7, 60(sp) # 4-byte Folded Spill
+; NOLU-NEXT:    sw s8, 56(sp) # 4-byte Folded Spill
+; NOLU-NEXT:    sw s9, 52(sp) # 4-byte Folded Spill
+; NOLU-NEXT:    sw s10, 48(sp) # 4-byte Folded Spill
+; NOLU-NEXT:    sw s11, 44(sp) # 4-byte Folded Spill
+; NOLU-NEXT:    lui s0, %hi(v0)
+; NOLU-NEXT:    lui s1, %hi(v1)
+; NOLU-NEXT:    lui s3, %hi(v2)
+; NOLU-NEXT:    lui s2, %hi(v3)
+; NOLU-NEXT:    lui a4, %hi(v4)
+; NOLU-NEXT:    lui a5, %hi(v5)
+; NOLU-NEXT:    lui a6, %hi(v6)
+; NOLU-NEXT:    lui a7, %hi(v7)
+; NOLU-NEXT:    lui t0, %hi(v8)
+; NOLU-NEXT:    lui t1, %hi(v9)
+; NOLU-NEXT:    lui t2, %hi(v10)
+; NOLU-NEXT:    lui t3, %hi(v11)
+; NOLU-NEXT:    lui t4, %hi(v12)
+; NOLU-NEXT:    lui t5, %hi(v13)
+; NOLU-NEXT:    lui t6, %hi(v14)
+; NOLU-NEXT:    lui ra, %hi(v15)
+; NOLU-NEXT:    lui a0, %hi(v16)
+; NOLU-NEXT:    lui a1, %hi(v17)
+; NOLU-NEXT:    lui a2, %hi(v18)
+; NOLU-NEXT:    lui a3, %hi(v19)
+; NOLU-NEXT:    lh s0, %lo(v0)(s0)
+; NOLU-NEXT:    sw s0, 40(sp) # 4-byte Folded Spill
+; NOLU-NEXT:    lh s0, %lo(v1)(s1)
+; NOLU-NEXT:    sw s0, 36(sp) # 4-byte Folded Spill
+; NOLU-NEXT:    lh s0, %lo(v2)(s3)
+; NOLU-NEXT:    sw s0, 32(sp) # 4-byte Folded Spill
+; NOLU-NEXT:    lh s0, %lo(v3)(s2)
+; NOLU-NEXT:    sw s0, 28(sp) # 4-byte Folded Spill
+; NOLU-NEXT:    lh a4, %lo(v4)(a4)
+; NOLU-NEXT:    sw a4, 24(sp) # 4-byte Folded Spill
+; NOLU-NEXT:    lh a4, %lo(v5)(a5)
+; NOLU-NEXT:    sw a4, 20(sp) # 4-byte Folded Spill
+; NOLU-NEXT:    lh a4, %lo(v6)(a6)
+; NOLU-NEXT:    sw a4, 16(sp) # 4-byte Folded Spill
+; NOLU-NEXT:    lh a4, %lo(v7)(a7)
+; NOLU-NEXT:    sw a4, 12(sp) # 4-byte Folded Spill
+; NOLU-NEXT:    lh s1, %lo(v8)(t0)
+; NOLU-NEXT:    lh s6, %lo(v9)(t1)
+; NOLU-NEXT:    lh s7, %lo(v10)(t2)
+; NOLU-NEXT:    lh s8, %lo(v11)(t3)
+; NOLU-NEXT:    lh s9, %lo(v12)(t4)
+; NOLU-NEXT:    lh s3, %lo(v13)(t5)
+; NOLU-NEXT:    lh s4, %lo(v14)(t6)
+; NOLU-NEXT:    lh s5, %lo(v15)(ra)
+; NOLU-NEXT:    lh s10, %lo(v16)(a0)
+; NOLU-NEXT:    lh s2, %lo(v17)(a1)
+; NOLU-NEXT:    lh s11, %lo(v18)(a2)
+; NOLU-NEXT:    lh s0, %lo(v19)(a3)
+; NOLU-NEXT:    call clobber
+; NOLU-NEXT:    lw a0, 40(sp) # 4-byte Folded Reload
+; NOLU-NEXT:    lw a1, 36(sp) # 4-byte Folded Reload
+; NOLU-NEXT:    add a0, a0, a1
+; NOLU-NEXT:    lw a1, 32(sp) # 4-byte Folded Reload
+; NOLU-NEXT:    lw a2, 28(sp) # 4-byte Folded Reload
+; NOLU-NEXT:    add a1, a1, a2
+; NOLU-NEXT:    lw a2, 24(sp) # 4-byte Folded Reload
+; NOLU-NEXT:    lw a3, 20(sp) # 4-byte Folded Reload
+; NOLU-NEXT:    add a2, a2, a3
+; NOLU-NEXT:    lw a3, 16(sp) # 4-byte Folded Reload
+; NOLU-NEXT:    lw a4, 12(sp) # 4-byte Folded Reload
+; NOLU-NEXT:    add a3, a3, a4
+; NOLU-NEXT:    add s1, s1, s6
+; NOLU-NEXT:    add s7, s7, s8
+; NOLU-NEXT:    add s3, s9, s3
+; NOLU-NEXT:    add s4, s4, s5
+; NOLU-NEXT:    add s2, s10, s2
+; NOLU-NEXT:    add s0, s11, s0
+; NOLU-NEXT:    add a0, a0, a1
+; NOLU-NEXT:    add a2, a2, a3
+; NOLU-NEXT:    add s1, s1, s7
+; NOLU-NEXT:    add s3, s3, s4
+; NOLU-NEXT:    add s0, s2, s0
+; NOLU-NEXT:    add a0, a0, a2
+; NOLU-NEXT:    add s1, s1, s3
+; NOLU-NEXT:    add a0, a0, s1
+; NOLU-NEXT:    add a0, a0, s0
+; NOLU-NEXT:    lw ra, 92(sp) # 4-byte Folded Reload
+; NOLU-NEXT:    lw s0, 88(sp) # 4-byte Folded Reload
+; NOLU-NEXT:    lw s1, 84(sp) # 4-byte Folded Reload
+; NOLU-NEXT:    lw s2, 80(sp) # 4-byte Folded Reload
+; NOLU-NEXT:    lw s3, 76(sp) # 4-byte Folded Reload
+; NOLU-NEXT:    lw s4, 72(sp) # 4-byte Folded Reload
+; NOLU-NEXT:    lw s5, 68(sp) # 4-byte Folded Reload
+; NOLU-NEXT:    lw s6, 64(sp) # 4-byte Folded Reload
+; NOLU-NEXT:    lw s7, 60(sp) # 4-byte Folded Reload
+; NOLU-NEXT:    lw s8, 56(sp) # 4-byte Folded Reload
+; NOLU-NEXT:    lw s9, 52(sp) # 4-byte Folded Reload
+; NOLU-NEXT:    lw s10, 48(sp) # 4-byte Folded Reload
+; NOLU-NEXT:    lw s11, 44(sp) # 4-byte Folded Reload
+; NOLU-NEXT:    addi sp, sp, 96
+; NOLU-NEXT:    jalr zero, 0(ra)
 entry:
   ; Perform volatile loads from many distinct globals.
   %t0  = load volatile i16, i8* @v0

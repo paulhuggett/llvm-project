@@ -23,12 +23,7 @@ define signext i16 @unaligned_global() {
 ; NOLH-LABEL: unaligned_global:
 ; NOLH:       # %bb.0: # %entry
 ; NOLH-NEXT:    lui a0, %hi(global2)
-; NOLH-NEXT:    addi a0, a0, %lo(global2)
-; NOLH-NEXT:    andi a1, a0, -4
-; NOLH-NEXT:    lw a2, 0(a1)
-; NOLH-NEXT:    sub a0, a0, a1
-; NOLH-NEXT:    slli a0, a0, 3
-; NOLH-NEXT:    srl a0, a2, a0
+; NOLH-NEXT:    lhu a0, %lo(global2)(a0)
 ; NOLH-NEXT:    slli a0, a0, 16
 ; NOLH-NEXT:    srai a0, a0, 16
 ; NOLH-NEXT:    jalr zero, 0(ra)
@@ -47,12 +42,7 @@ define signext i16 @global_even() {
 ; NOLH-LABEL: global_even:
 ; NOLH:       # %bb.0: # %entry
 ; NOLH-NEXT:    lui a0, %hi(global+4)
-; NOLH-NEXT:    addi a0, a0, %lo(global+4)
-; NOLH-NEXT:    andi a1, a0, -4
-; NOLH-NEXT:    lw a2, 0(a1)
-; NOLH-NEXT:    sub a0, a0, a1
-; NOLH-NEXT:    slli a0, a0, 3
-; NOLH-NEXT:    srl a0, a2, a0
+; NOLH-NEXT:    lhu a0, %lo(global+4)(a0)
 ; NOLH-NEXT:    slli a0, a0, 16
 ; NOLH-NEXT:    srai a0, a0, 16
 ; NOLH-NEXT:    jalr zero, 0(ra)
@@ -71,12 +61,7 @@ define signext i16 @global_odd() {
 ; NOLH-LABEL: global_odd:
 ; NOLH:       # %bb.0: # %entry
 ; NOLH-NEXT:    lui a0, %hi(global+6)
-; NOLH-NEXT:    addi a0, a0, %lo(global+6)
-; NOLH-NEXT:    andi a1, a0, -4
-; NOLH-NEXT:    lw a2, 0(a1)
-; NOLH-NEXT:    sub a0, a0, a1
-; NOLH-NEXT:    slli a0, a0, 3
-; NOLH-NEXT:    srl a0, a2, a0
+; NOLH-NEXT:    lhu a0, %lo(global+6)(a0)
 ; NOLH-NEXT:    slli a0, a0, 16
 ; NOLH-NEXT:    srai a0, a0, 16
 ; NOLH-NEXT:    jalr zero, 0(ra)
@@ -108,33 +93,18 @@ define signext i16 @stack_even() {
 ; NOLH-NEXT:    addi sp, sp, -16
 ; NOLH-NEXT:    .cfi_def_cfa_offset 16
 ; NOLH-NEXT:    lui a0, %hi(global)
-; NOLH-NEXT:    addi a1, a0, %lo(global)
-; NOLH-NEXT:    lw a0, %lo(global)(a0)
-; NOLH-NEXT:    addi a2, a1, 4
-; NOLH-NEXT:    addi a1, a1, 6
-; NOLH-NEXT:    andi a3, a2, -4
-; NOLH-NEXT:    sw a0, 12(sp)
-; NOLH-NEXT:    lw a0, 0(a3)
-; NOLH-NEXT:    sub a2, a2, a3
-; NOLH-NEXT:    andi a3, a1, -4
-; NOLH-NEXT:    slli a2, a2, 3
-; NOLH-NEXT:    srl a0, a0, a2
-; NOLH-NEXT:    slli a0, a0, 16
-; NOLH-NEXT:    srai a0, a0, 16
-; NOLH-NEXT:    sh a0, 8(sp)
-; NOLH-NEXT:    lw a0, 0(a3)
-; NOLH-NEXT:    addi a2, sp, 8
-; NOLH-NEXT:    sub a1, a1, a3
-; NOLH-NEXT:    slli a1, a1, 3
-; NOLH-NEXT:    srl a0, a0, a1
+; NOLH-NEXT:    lw a1, %lo(global)(a0)
+; NOLH-NEXT:    addi a0, a0, %lo(global)
+; NOLH-NEXT:    sw a1, 12(sp)
+; NOLH-NEXT:    lhu a1, 4(a0)
+; NOLH-NEXT:    slli a1, a1, 16
+; NOLH-NEXT:    srai a1, a1, 16
+; NOLH-NEXT:    sh a1, 8(sp)
+; NOLH-NEXT:    lhu a0, 6(a0)
 ; NOLH-NEXT:    slli a0, a0, 16
 ; NOLH-NEXT:    srai a0, a0, 16
 ; NOLH-NEXT:    sh a0, 6(sp)
-; NOLH-NEXT:    andi a0, a2, -4
-; NOLH-NEXT:    lw a1, 0(a0)
-; NOLH-NEXT:    sub a2, a2, a0
-; NOLH-NEXT:    slli a2, a2, 3
-; NOLH-NEXT:    srl a0, a1, a2
+; NOLH-NEXT:    lhu a0, 8(sp)
 ; NOLH-NEXT:    slli a0, a0, 16
 ; NOLH-NEXT:    srai a0, a0, 16
 ; NOLH-NEXT:    addi sp, sp, 16
@@ -178,32 +148,17 @@ define signext i16 @stack_odd() {
 ; NOLH-NEXT:    .cfi_def_cfa_offset 16
 ; NOLH-NEXT:    lui a0, %hi(global)
 ; NOLH-NEXT:    lw a1, %lo(global)(a0)
-; NOLH-NEXT:    addi a0, a0, %lo(global)
-; NOLH-NEXT:    addi a2, a0, 4
-; NOLH-NEXT:    addi a0, a0, 6
-; NOLH-NEXT:    andi a3, a2, -4
 ; NOLH-NEXT:    sw a1, 8(sp)
-; NOLH-NEXT:    lw a1, 0(a3)
-; NOLH-NEXT:    sub a2, a2, a3
-; NOLH-NEXT:    andi a3, a0, -4
-; NOLH-NEXT:    slli a2, a2, 3
-; NOLH-NEXT:    srl a1, a1, a2
+; NOLH-NEXT:    addi a0, a0, %lo(global)
+; NOLH-NEXT:    lhu a1, 4(a0)
 ; NOLH-NEXT:    slli a1, a1, 16
 ; NOLH-NEXT:    srai a1, a1, 16
 ; NOLH-NEXT:    sh a1, 12(sp)
-; NOLH-NEXT:    lw a1, 0(a3)
-; NOLH-NEXT:    addi a2, sp, 6
-; NOLH-NEXT:    sub a0, a0, a3
-; NOLH-NEXT:    slli a0, a0, 3
-; NOLH-NEXT:    srl a0, a1, a0
+; NOLH-NEXT:    lhu a0, 6(a0)
 ; NOLH-NEXT:    slli a0, a0, 16
 ; NOLH-NEXT:    srai a0, a0, 16
 ; NOLH-NEXT:    sh a0, 6(sp)
-; NOLH-NEXT:    andi a0, a2, -4
-; NOLH-NEXT:    lw a1, 0(a0)
-; NOLH-NEXT:    sub a2, a2, a0
-; NOLH-NEXT:    slli a2, a2, 3
-; NOLH-NEXT:    srl a0, a1, a2
+; NOLH-NEXT:    lhu a0, 6(sp)
 ; NOLH-NEXT:    slli a0, a0, 16
 ; NOLH-NEXT:    srai a0, a0, 16
 ; NOLH-NEXT:    addi sp, sp, 16
@@ -227,11 +182,7 @@ define signext i16 @no_align(ptr noundef readonly captures(none) %ptr) {
 ;
 ; NOLH-LABEL: no_align:
 ; NOLH:       # %bb.0: # %entry
-; NOLH-NEXT:    andi a1, a0, -4
-; NOLH-NEXT:    lw a2, 0(a1)
-; NOLH-NEXT:    sub a0, a0, a1
-; NOLH-NEXT:    slli a0, a0, 3
-; NOLH-NEXT:    srl a0, a2, a0
+; NOLH-NEXT:    lhu a0, 0(a0)
 ; NOLH-NEXT:    slli a0, a0, 16
 ; NOLH-NEXT:    srai a0, a0, 16
 ; NOLH-NEXT:    jalr zero, 0(ra)
@@ -248,12 +199,7 @@ define signext i16 @ptr_even(ptr noundef readonly captures(none) %ptr) {
 ;
 ; NOLH-LABEL: ptr_even:
 ; NOLH:       # %bb.0: # %entry
-; NOLH-NEXT:    addi a0, a0, 4
-; NOLH-NEXT:    andi a1, a0, -4
-; NOLH-NEXT:    lw a2, 0(a1)
-; NOLH-NEXT:    sub a0, a0, a1
-; NOLH-NEXT:    slli a0, a0, 3
-; NOLH-NEXT:    srl a0, a2, a0
+; NOLH-NEXT:    lhu a0, 4(a0)
 ; NOLH-NEXT:    slli a0, a0, 16
 ; NOLH-NEXT:    srai a0, a0, 16
 ; NOLH-NEXT:    jalr zero, 0(ra)
@@ -271,12 +217,7 @@ define signext i16 @ptr_odd(ptr noundef readonly captures(none) %ptr) {
 ;
 ; NOLH-LABEL: ptr_odd:
 ; NOLH:       # %bb.0: # %entry
-; NOLH-NEXT:    addi a0, a0, 6
-; NOLH-NEXT:    andi a1, a0, -4
-; NOLH-NEXT:    lw a2, 0(a1)
-; NOLH-NEXT:    sub a0, a0, a1
-; NOLH-NEXT:    slli a0, a0, 3
-; NOLH-NEXT:    srl a0, a2, a0
+; NOLH-NEXT:    lhu a0, 6(a0)
 ; NOLH-NEXT:    slli a0, a0, 16
 ; NOLH-NEXT:    srai a0, a0, 16
 ; NOLH-NEXT:    jalr zero, 0(ra)

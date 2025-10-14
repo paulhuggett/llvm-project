@@ -6,6 +6,9 @@
 ; RUN:     --disable-block-placement \
 ; RUN:     -mattr=+xkeysomnolbu < %s \
 ; RUN:   | FileCheck -check-prefixes=NOLBU %s
+; RUN: not llc -mtriple=riscv32 -riscv-no-aliases -verify-machineinstrs \
+; RUN:     --disable-block-placement \
+; RUN:     -mattr=+xkeysomnolbu -mattr=+xkeysomnolb < %s
 
 @global2 = global i8 97, align 1
 @global = global { i32, i8, i8, [2 x i8] } { i32 0, i8 98, i8 99, [2 x i8] zeroinitializer }, align 4
@@ -21,12 +24,7 @@ define zeroext i8 @unaligned_global() {
 ; NOLBU-LABEL: unaligned_global:
 ; NOLBU:       # %bb.0: # %entry
 ; NOLBU-NEXT:    lui a0, %hi(global2)
-; NOLBU-NEXT:    addi a0, a0, %lo(global2)
-; NOLBU-NEXT:    andi a1, a0, -2
-; NOLBU-NEXT:    lhu a2, 0(a1)
-; NOLBU-NEXT:    sltu a0, a1, a0
-; NOLBU-NEXT:    slli a0, a0, 3
-; NOLBU-NEXT:    srl a0, a2, a0
+; NOLBU-NEXT:    lb a0, %lo(global2)(a0)
 ; NOLBU-NEXT:    andi a0, a0, 255
 ; NOLBU-NEXT:    jalr zero, 0(ra)
 entry:
@@ -44,7 +42,7 @@ define zeroext i8 @global_even() {
 ; NOLBU-LABEL: global_even:
 ; NOLBU:       # %bb.0: # %entry
 ; NOLBU-NEXT:    lui a0, %hi(global+4)
-; NOLBU-NEXT:    lhu a0, %lo(global+4)(a0)
+; NOLBU-NEXT:    lb a0, %lo(global+4)(a0)
 ; NOLBU-NEXT:    andi a0, a0, 255
 ; NOLBU-NEXT:    jalr zero, 0(ra)
 entry:
@@ -62,8 +60,7 @@ define zeroext i8 @global_odd() {
 ; NOLBU-LABEL: global_odd:
 ; NOLBU:       # %bb.0: # %entry
 ; NOLBU-NEXT:    lui a0, %hi(global+5)
-; NOLBU-NEXT:    lhu a0, %lo(global+4)(a0)
-; NOLBU-NEXT:    srli a0, a0, 8
+; NOLBU-NEXT:    lb a0, %lo(global+5)(a0)
 ; NOLBU-NEXT:    andi a0, a0, 255
 ; NOLBU-NEXT:    jalr zero, 0(ra)
 entry:
@@ -102,35 +99,20 @@ define void @stack_even() {
 ; NOLBU-NEXT:    lw a1, %lo(.L__const.stack_odd.ss)(a0)
 ; NOLBU-NEXT:    addi a0, a0, %lo(.L__const.stack_odd.ss)
 ; NOLBU-NEXT:    sw a1, 12(sp)
-; NOLBU-NEXT:    lhu a1, 4(a0)
-; NOLBU-NEXT:    addi a2, a0, 7
-; NOLBU-NEXT:    andi a3, a2, -2
-; NOLBU-NEXT:    sltu a2, a3, a2
+; NOLBU-NEXT:    lb a1, 4(a0)
 ; NOLBU-NEXT:    andi a1, a1, 255
 ; NOLBU-NEXT:    sb a1, 8(sp)
-; NOLBU-NEXT:    lhu a1, 0(a3)
-; NOLBU-NEXT:    addi a3, a0, 5
-; NOLBU-NEXT:    addi a0, a0, 6
-; NOLBU-NEXT:    slli a2, a2, 3
-; NOLBU-NEXT:    srl a1, a1, a2
-; NOLBU-NEXT:    andi a2, a3, -2
+; NOLBU-NEXT:    lb a1, 7(a0)
 ; NOLBU-NEXT:    andi a1, a1, 255
 ; NOLBU-NEXT:    sb a1, 6(sp)
-; NOLBU-NEXT:    andi a1, a0, -2
-; NOLBU-NEXT:    sltu a3, a2, a3
-; NOLBU-NEXT:    sltu a0, a1, a0
-; NOLBU-NEXT:    lhu a2, 0(a2)
-; NOLBU-NEXT:    lhu a1, 0(a1)
-; NOLBU-NEXT:    slli a3, a3, 3
-; NOLBU-NEXT:    slli a0, a0, 3
-; NOLBU-NEXT:    srl a2, a2, a3
-; NOLBU-NEXT:    srl a0, a1, a0
-; NOLBU-NEXT:    andi a1, a2, 255
+; NOLBU-NEXT:    lb a1, 5(a0)
+; NOLBU-NEXT:    lb a0, 6(a0)
+; NOLBU-NEXT:    andi a1, a1, 255
 ; NOLBU-NEXT:    andi a0, a0, 255
 ; NOLBU-NEXT:    slli a0, a0, 8
 ; NOLBU-NEXT:    or a0, a0, a1
 ; NOLBU-NEXT:    sh a0, 4(sp)
-; NOLBU-NEXT:    lhu a0, 8(sp)
+; NOLBU-NEXT:    lb a0, 8(sp)
 ; NOLBU-NEXT:    andi a0, a0, 255
 ; NOLBU-NEXT:    addi sp, sp, 16
 ; NOLBU-NEXT:    .cfi_def_cfa_offset 0
@@ -177,27 +159,17 @@ define zeroext i8 @stack_odd() {
 ; NOLBU-NEXT:    .cfi_def_cfa_offset 16
 ; NOLBU-NEXT:    lui a0, %hi(.L__const.stack_odd.ss)
 ; NOLBU-NEXT:    lw a1, %lo(.L__const.stack_odd.ss)(a0)
-; NOLBU-NEXT:    addi a0, a0, %lo(.L__const.stack_odd.ss)
 ; NOLBU-NEXT:    sw a1, 8(sp)
-; NOLBU-NEXT:    lhu a1, 4(a0)
-; NOLBU-NEXT:    addi a2, a0, 5
-; NOLBU-NEXT:    andi a3, a2, -2
+; NOLBU-NEXT:    addi a0, a0, %lo(.L__const.stack_odd.ss)
+; NOLBU-NEXT:    lb a1, 4(a0)
 ; NOLBU-NEXT:    andi a1, a1, 255
 ; NOLBU-NEXT:    sb a1, 12(sp)
-; NOLBU-NEXT:    lhu a1, 0(a3)
-; NOLBU-NEXT:    sltu a2, a3, a2
-; NOLBU-NEXT:    slli a2, a2, 3
-; NOLBU-NEXT:    srl a1, a1, a2
+; NOLBU-NEXT:    lb a1, 5(a0)
 ; NOLBU-NEXT:    andi a1, a1, 255
 ; NOLBU-NEXT:    sb a1, 7(sp)
 ; NOLBU-NEXT:    lh a0, 6(a0)
-; NOLBU-NEXT:    addi a1, sp, 7
 ; NOLBU-NEXT:    sh a0, 4(sp)
-; NOLBU-NEXT:    andi a0, a1, -2
-; NOLBU-NEXT:    lhu a2, 0(a0)
-; NOLBU-NEXT:    sltu a0, a0, a1
-; NOLBU-NEXT:    slli a0, a0, 3
-; NOLBU-NEXT:    srl a0, a2, a0
+; NOLBU-NEXT:    lb a0, 7(sp)
 ; NOLBU-NEXT:    andi a0, a0, 255
 ; NOLBU-NEXT:    addi sp, sp, 16
 ; NOLBU-NEXT:    .cfi_def_cfa_offset 0
@@ -222,11 +194,7 @@ define zeroext i8 @no_align(ptr %ptr) {
 ;
 ; NOLBU-LABEL: no_align:
 ; NOLBU:       # %bb.0: # %entry
-; NOLBU-NEXT:    andi a1, a0, -2
-; NOLBU-NEXT:    lhu a2, 0(a1)
-; NOLBU-NEXT:    sltu a0, a1, a0
-; NOLBU-NEXT:    slli a0, a0, 3
-; NOLBU-NEXT:    srl a0, a2, a0
+; NOLBU-NEXT:    lb a0, 0(a0)
 ; NOLBU-NEXT:    andi a0, a0, 255
 ; NOLBU-NEXT:    jalr zero, 0(ra)
 entry:
@@ -242,7 +210,7 @@ define zeroext i8 @ptr_even(ptr %ptr) {
 ;
 ; NOLBU-LABEL: ptr_even:
 ; NOLBU:       # %bb.0: # %entry
-; NOLBU-NEXT:    lhu a0, 4(a0)
+; NOLBU-NEXT:    lb a0, 4(a0)
 ; NOLBU-NEXT:    andi a0, a0, 255
 ; NOLBU-NEXT:    jalr zero, 0(ra)
 entry:
@@ -259,12 +227,7 @@ define zeroext i8 @ptr_odd(ptr %ptr) {
 ;
 ; NOLBU-LABEL: ptr_odd:
 ; NOLBU:       # %bb.0: # %entry
-; NOLBU-NEXT:    addi a0, a0, 5
-; NOLBU-NEXT:    andi a1, a0, -2
-; NOLBU-NEXT:    lhu a2, 0(a1)
-; NOLBU-NEXT:    sltu a0, a1, a0
-; NOLBU-NEXT:    slli a0, a0, 3
-; NOLBU-NEXT:    srl a0, a2, a0
+; NOLBU-NEXT:    lb a0, 5(a0)
 ; NOLBU-NEXT:    andi a0, a0, 255
 ; NOLBU-NEXT:    jalr zero, 0(ra)
 entry:
