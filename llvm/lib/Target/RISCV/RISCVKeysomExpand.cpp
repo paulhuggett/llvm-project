@@ -418,98 +418,21 @@ bool RISCVKeysomExpand::expandSLTIU(MachineBasicBlock &OrigBB,
   const int64_t Imm = MI.getOperand(2).getImm();
   MachineRegisterInfo &MRI = MF->getRegInfo();
 
-  if (!STI_->hasVendorXKeysomNoSltu()) {
-    // Use "sltu" if we have it. The replacement is straightforward:
-    //
-    //      [... previous instrs ...]
-    //      addi  Rs2, zero, imm
-    //      sltu  rd, rs1, Rs2
-    //      [... later instrs ...]
-    Register Rs2 = MRI.createVirtualRegister(MRI.getRegClass(Rd));
-    BuildMI(OrigBB, MBBI, DL, TII_->get(RISCV::ADDI), Rs2)
-        .addReg(Zero)
-        .addImm(Imm);
-    BuildMI(OrigBB, MBBI, DL, TII_->get(RISCV::SLTU), Rd)
-        .addReg(Rs1)
-        .addReg(Rs2);
-    MI.eraseFromParent();
-    return true;
-  }
-
-  // The replacement code should now look like:
+  // Use "sltu". The replacement is straightforward:
   //
-  //  OrigBB:
   //      [... previous instrs ...]
-  //      addi  SubResult, rs1, -imm
-  //      addi  ImmReg, zero, imm
-  //      bgeu  SubResult, ImmReg, TrueBB
-  //  FalseBB:
-  //      addi  FalseReg, zero, 0
-  //      jal   X0, PostBB
-  //  TrueBB:
-  //      addi  TrueReg, zero, 1
-  //      ; Fallthrough
-  //  PostBB:
-  //      rd = PHI [TrueReg, TrueBB], [FalseReg, FalseBB]
+  //      addi  Rs2, zero, imm
+  //      sltu  rd, rs1, Rs2
   //      [... later instrs ...]
-
-  MachineBasicBlock *const FalseBB =
-      MF->CreateMachineBasicBlock(OrigBB.getBasicBlock());
-  MachineBasicBlock *const TrueBB =
-      MF->CreateMachineBasicBlock(OrigBB.getBasicBlock());
-  MachineBasicBlock *const PostBB =
-      MF->CreateMachineBasicBlock(OrigBB.getBasicBlock());
-
-  MachineFunction::iterator It = ++OrigBB.getIterator();
-  MF->insert(It, FalseBB);
-  MF->insert(It, TrueBB);
-  MF->insert(It, PostBB);
-
-  // Transfer rest of current basic-block to PostBB
-  PostBB->splice(PostBB->begin(), &OrigBB,
-                 std::next(MachineBasicBlock::iterator{MI}), OrigBB.end());
-  PostBB->transferSuccessorsAndUpdatePHIs(&OrigBB);
-
-  Register SubResult = MRI.createVirtualRegister(MRI.getRegClass(Rd));
-  BuildMI(OrigBB, OrigBB.end(), DL, TII_->get(RISCV::ADDI), SubResult)
-      .addReg(Rs1)
-      .addImm(-Imm);
-  Register ImmReg = MRI.createVirtualRegister(MRI.getRegClass(Rd));
-  BuildMI(OrigBB, OrigBB.end(), DL, TII_->get(RISCV::ADDI), ImmReg)
+  //
+  // If sltu is not available, the next iteration of the outer loop will cause
+  // it to be expanded.
+  Register Rs2 = MRI.createVirtualRegister(MRI.getRegClass(Rd));
+  BuildMI(OrigBB, MBBI, DL, TII_->get(RISCV::ADDI), Rs2)
       .addReg(Zero)
       .addImm(Imm);
-  BuildMI(OrigBB, OrigBB.end(), DL, TII_->get(RISCV::BGEU))
-      .addReg(SubResult)
-      .addReg(ImmReg)
-      .addMBB(TrueBB);
-  OrigBB.addSuccessor(TrueBB);
-  OrigBB.addSuccessor(FalseBB);
-
-  Register FalseReg = MRI.createVirtualRegister(MRI.getRegClass(Rd));
-  BuildMI(*FalseBB, FalseBB->end(), DL, TII_->get(RISCV::ADDI), FalseReg)
-      .addReg(Zero)
-      .addImm(0);
-  BuildMI(*FalseBB, FalseBB->end(), DL, TII_->get(RISCV::PseudoBR))
-      .addMBB(PostBB);
-  FalseBB->addSuccessor(PostBB);
-
-  Register TrueReg = MRI.createVirtualRegister(MRI.getRegClass(Rd));
-  BuildMI(*TrueBB, TrueBB->end(), DL, TII_->get(RISCV::ADDI), TrueReg)
-      .addReg(Zero)
-      .addImm(1);
-  // TrueBB falls through.
-  TrueBB->addSuccessor(PostBB);
-
-  // A phi node to def the final result.
-  BuildMI(*PostBB, PostBB->begin(), DL, TII_->get(TargetOpcode::PHI), Rd)
-      .addReg(FalseReg)
-      .addMBB(FalseBB)
-      .addReg(TrueReg)
-      .addMBB(TrueBB);
-
-  NextMBBI = OrigBB.end();
+  BuildMI(OrigBB, MBBI, DL, TII_->get(RISCV::SLTU), Rd).addReg(Rs1).addReg(Rs2);
   MI.eraseFromParent();
-
   return true;
 }
 
@@ -692,7 +615,7 @@ bool RISCVKeysomExpand::expandSLTU(MachineBasicBlock &OrigBB,
 }
 
 bool RISCVKeysomExpand::expandSetLessThan(
-    unsigned CC, MachineBasicBlock &OrigBB,
+    unsigned BranchOpcode, MachineBasicBlock &OrigBB,
     MachineBasicBlock::iterator MBBI, MachineBasicBlock::iterator &NextMBBI) {
 
   if (!IsPreRA_) {
@@ -744,9 +667,9 @@ bool RISCVKeysomExpand::expandSetLessThan(
                  std::next(MachineBasicBlock::iterator{MI}), OrigBB.end());
   PostBB->transferSuccessorsAndUpdatePHIs(&OrigBB);
 
-  assert(CC == RISCV::BLT || CC == RISCV::BLTU);
+  assert(BranchOpcode == RISCV::BLT || BranchOpcode == RISCV::BLTU);
   const MachineOperand Cond[] = {
-      MachineOperand::CreateImm(CC),
+      MachineOperand::CreateImm(BranchOpcode),
       MachineOperand::CreateReg(Rs1, /*isDef=*/false),
       MachineOperand::CreateReg(Rs2, /*isDef=*/false),
   };

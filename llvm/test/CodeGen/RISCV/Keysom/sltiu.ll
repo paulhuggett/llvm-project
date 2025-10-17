@@ -84,14 +84,13 @@ define i32 @g(i32 %x) nounwind {
 ;
 ; RV32I_NO_SLTIU_SLTU-LABEL: g:
 ; RV32I_NO_SLTIU_SLTU:       # %bb.0: # %entry
-; RV32I_NO_SLTIU_SLTU-NEXT:    addi a1, a0, -1
-; RV32I_NO_SLTIU_SLTU-NEXT:    addi a2, zero, 1
-; RV32I_NO_SLTIU_SLTU-NEXT:    bltu a1, a2, .LBB1_2
-; RV32I_NO_SLTIU_SLTU-NEXT:  # %bb.1: # %entry
 ; RV32I_NO_SLTIU_SLTU-NEXT:    addi a1, zero, 1
-; RV32I_NO_SLTIU_SLTU-NEXT:    add a0, a0, a1
+; RV32I_NO_SLTIU_SLTU-NEXT:    bltu a0, a1, .LBB1_2
+; RV32I_NO_SLTIU_SLTU-NEXT:  # %bb.1: # %entry
 ; RV32I_NO_SLTIU_SLTU-NEXT:    jalr zero, 0(ra)
 ; RV32I_NO_SLTIU_SLTU-NEXT:  .LBB1_2: # %entry
+; RV32I_NO_SLTIU_SLTU-NEXT:    addi a1, zero, 1
+; RV32I_NO_SLTIU_SLTU-NEXT:    add a0, a0, a1
 ; RV32I_NO_SLTIU_SLTU-NEXT:    jalr zero, 0(ra)
 ;
 ; RV32I_GLISEL_NO_SLTIU-LABEL: g:
