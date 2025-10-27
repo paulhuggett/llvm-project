@@ -13,12 +13,12 @@ define i32 @f(i32 %x, i32 %y) nounwind {
 ; NOSRL-LABEL: f:
 ; NOSRL:       # %bb.0: # %entry
 ; NOSRL-NEXT:    sra a0, a0, a1
-; NOSRL-NEXT:    addi a2, zero, -1
 ; NOSRL-NEXT:    andi a1, a1, 31
+; NOSRL-NEXT:    addi a2, zero, 1
 ; NOSRL-NEXT:    addi a3, zero, 32
 ; NOSRL-NEXT:    sub a3, a3, a1
 ; NOSRL-NEXT:    sll a1, a2, a3
-; NOSRL-NEXT:    xori a1, a1, -1
+; NOSRL-NEXT:    addi a1, a1, -1
 ; NOSRL-NEXT:    and a0, a0, a1
 ; NOSRL-NEXT:    jalr zero, 0(ra)
 entry:

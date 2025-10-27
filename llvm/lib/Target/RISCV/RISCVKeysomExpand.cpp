@@ -507,6 +507,25 @@ bool RISCVKeysomExpand::expandSRL(MachineBasicBlock &OrigBB,
   if (!STI_->hasVendorXKeysomNoSrl()) {
     return false;
   }
+  if (!IsPreRA_) {
+    assert(false && "Can't expand SRL after register allocation");
+    return false;
+  }
+
+  // Replaces:
+  //
+  //   srl  rd, rs1, rs2
+  //
+  // with:
+  //
+  //   sra   shifta, rs1, rs2
+  //   andi  n, rs2, 0x1f      ; only the least-significant 5 bits of rs2 are used.
+  //   addi  one, zero, 1
+  //   addi  xlen, zero, 32
+  //   sub   count, xlen, n    ; count = xlen - n
+  //   sll   m1, one, count    ; m1 = 1 << (xlen - n)
+  //   addi  mask, m1, -1      ; mask = (1 << (xlen - n)) - 1
+  //   and   rd, shifta, mask  ; rd = shifta & mask
 
   static constexpr auto Zero = RISCV::X0;
   MachineInstr &MI = *MBBI;
@@ -519,34 +538,14 @@ bool RISCVKeysomExpand::expandSRL(MachineBasicBlock &OrigBB,
   InstructionHelper Helper{
       MRI, MRI.getRegClass(Rd), OrigBB, MBBI, MI.getDebugLoc(), STI_, TII_};
 
-  // Use sra and a mask. Starting with the instruction:
-  //
-  //   rd = srl rs1, rs2
-  //
-  // The replacement looks like:
-  //
-  //   ShiftA = sra rs1, rs2
-  //   AllOnes = addi Zero, -1
-  //   Rs2Bounded = and rs2, 0b11111   ; use rs2's least-significant 5 bits
-  //   Dist = sub Xlen, Rs2Bounded     ; how far to shift AllOnes
-  //   SextMaskInv = sll AllOnes, Dist ; create the inverted mask
-  //   SextMask = xori SextMaskInv, -1 ; invert to get the true mask
-  //   rd = ShiftA & SextMask
-
   auto ShiftA = Helper.rvSra(Rs1, Rs2);
-  auto AllOnes = Helper.rvAddi(Zero, -1);
-  // Now mask out the effect of the sign extension that SRA performs.
-  // Zero all but the lower 5 bits of rs2
-  auto Rs2Bounded = Helper.rvAndi(Rs2, 0b11111);
-  // How far to shift AllOnes
-  auto XLenImm = Helper.rvAddi(Zero, STI_->getXLen());
-  auto Dist = Helper.rvSub(XLenImm, Rs2Bounded);
-  // Create the inverted mask
-  Register SextMaskInv = Helper.rvSll(AllOnes, Dist);
-  // Invert to get the true mask
-  Register SextMask = Helper.rvXori(SextMaskInv, -1);
-
-  Helper.rvAnd(Rd, ShiftA, SextMask);
+  auto N = Helper.rvAndi(Rs2, 0b11111); // the least-significant 5 bits of rs2
+  auto One = Helper.rvAddi(Zero, 1);    // one = 1
+  auto XLen = Helper.rvAddi(Zero, STI_->getXLen()); // xlen = 32
+  auto Count = Helper.rvSub(XLen, N);               // count = xlen - N
+  auto M1 = Helper.rvSll(One, Count);               // m1 = 1 << (xlen - N)
+  auto Mask = Helper.rvAddi(M1, -1); // mask = (1 << (xlen - N)) - 1
+  Helper.rvAnd(Rd, ShiftA, Mask);
 
   MI.eraseFromParent();
   return true;
