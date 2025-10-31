@@ -825,12 +825,27 @@ std::optional<unsigned> getFoldedOpcode(MachineFunction &MF, MachineInstr &MI,
       return RISCV::LW;
     if (RISCVInstrInfo::isZEXT_W(MI))
       return RISCV::LWU;
-    if (RISCVInstrInfo::isZEXT_B(MI))
-      return RISCV::LBU;
+    if (RISCVInstrInfo::isZEXT_B(MI)) {
+      // *PBH*: Check that the LBU instruction is available
+      if (!MF.getSubtarget<RISCVSubtarget>().hasVendorXKeysomNoLbu()) {
+        return RISCV::LBU;
+      }
+      // *PBH*: End
+    }
     break;
   case RISCV::SEXT_H:
+    // *PBH*: Check that the LH instruction is available
+    if (MF.getSubtarget<RISCVSubtarget>().hasVendorXKeysomNoLh()) {
+      break;
+    }
+    // *PBH*: End
     return RISCV::LH;
   case RISCV::SEXT_B:
+    // *PBH*: Check that the LB instruction is available
+    if (MF.getSubtarget<RISCVSubtarget>().hasVendorXKeysomNoLb()) {
+      break;
+    }
+    // *PBH*: End
     return RISCV::LB;
   case RISCV::ZEXT_H_RV32:
   case RISCV::ZEXT_H_RV64:

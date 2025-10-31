@@ -1,3 +1,4 @@
+#include <unordered_set>
 //===-- RISCVKeysomExpand.cpp - Expand pseudo instructions -----------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -340,7 +341,7 @@ bool RISCVKeysomExpand::expandMBB(MachineBasicBlock &MBB) {
 bool RISCVKeysomExpand::expandMI(MachineBasicBlock &MBB,
                                  MachineBasicBlock::iterator MBBI,
                                  MachineBasicBlock::iterator &NextMBBI) {
-  LLVM_DEBUG(dbgs() << "expanding: " << TII_->getName(MBBI->getOpcode())
+  LLVM_DEBUG(dbgs() << "  expanding: " << TII_->getName(MBBI->getOpcode())
                     << '\n');
   switch (MBBI->getOpcode()) {
   case RISCV::PseudoSLTIU:
@@ -518,14 +519,23 @@ bool RISCVKeysomExpand::expandSRL(MachineBasicBlock &OrigBB,
   //
   // with:
   //
-  //   sra   shifta, rs1, rs2
-  //   andi  n, rs2, 0x1f      ; only the least-significant 5 bits of rs2 are used.
-  //   addi  one, zero, 1
-  //   addi  xlen, zero, 32
-  //   sub   count, xlen, n    ; count = xlen - n
-  //   sll   m1, one, count    ; m1 = 1 << (xlen - n)
-  //   addi  mask, m1, -1      ; mask = (1 << (xlen - n)) - 1
-  //   and   rd, shifta, mask  ; rd = shifta & mask
+  //   sra   shifted, rs1, rs2
+  //   andi  n, rs2, 0x1F      ; the least-significant 5 bits of rs2
+  //
+  //   addi  one, Zero, 1
+  //   addi  const31, Zero, 31
+  //   addi  count32, Zero, 32
+  //
+  //   sub   t1a, const31, n   ; one less than the desired shift distance (since we'll double t0 later).
+  //
+  //   sll   a, one, t1a       ; 1 << (31 - N)
+  //   add   b, a, a           ; left shift by one more bit (use slli if available).
+  //   addi  c, b, -1          ; t0 = (1 << (32 - N)) - 1
+  //
+  //   sub   t2a, N, const32   ; rs2 - 32Negative if rs2 < 32, positive or zero otherwise.
+  //   srai  t2b, t2a, 31      ; Arithmetic right shift by 31 copies the sign bit into every position.
+  //   and   mask, c, t2b      ; If rs2 < 32  keep the computed mask else zero.
+  //   and   Rd, Shifted, mask ; produce the final result
 
   static constexpr auto Zero = RISCV::X0;
   MachineInstr &MI = *MBBI;
@@ -538,15 +548,23 @@ bool RISCVKeysomExpand::expandSRL(MachineBasicBlock &OrigBB,
   InstructionHelper Helper{
       MRI, MRI.getRegClass(Rd), OrigBB, MBBI, MI.getDebugLoc(), STI_, TII_};
 
-  auto ShiftA = Helper.rvSra(Rs1, Rs2);
-  auto N = Helper.rvAndi(Rs2, 0b11111); // the least-significant 5 bits of rs2
-  auto One = Helper.rvAddi(Zero, 1);    // one = 1
-  auto XLen = Helper.rvAddi(Zero, STI_->getXLen()); // xlen = 32
-  auto Count = Helper.rvSub(XLen, N);               // count = xlen - N
-  auto M1 = Helper.rvSll(One, Count);               // m1 = 1 << (xlen - N)
-  auto Mask = Helper.rvAddi(M1, -1); // mask = (1 << (xlen - N)) - 1
-  Helper.rvAnd(Rd, ShiftA, Mask);
+  auto const Shifted = Helper.rvSra(Rs1, Rs2);
+  auto const N = Helper.rvAndi(Rs2, 0b11111); // the least-significant 5 bits of rs2
 
+  auto const One  = Helper.rvAddi(Zero, 1);
+  auto const Const31 = Helper.rvAddi(Zero, 31);
+  auto const Const32 = Helper.rvAddi(Zero, 32);
+
+  auto const T1a = Helper.rvSub(Const31, N); // one less than the desired shift distance (since we'll double it later).
+
+  auto const A = Helper.rvSll(One, T1a);     // 1 << (31 - N)
+  auto const B = Helper.rvAdd(A, A);         // left shift by one more bit (TODO: use slli if available).
+  auto const C = Helper.rvAddi(B, -1);       // t0 = (1 << (32 - N)) - 1
+
+  auto const T2a = Helper.rvSub(N, Const32); // rs2 - 32Negative if rs2 < 32, positive or zero otherwise.
+  auto const T2b = Helper.rvSrai(T2a, 31);   // Arithmetic right shift by 31 copies the sign bit into every position.
+  auto const Mask = Helper.rvAnd(C, T2b);    // If rs2 < 32  keep the computed mask else zero.
+  Helper.rvAnd(Rd, Shifted, Mask);
   MI.eraseFromParent();
   return true;
 }
