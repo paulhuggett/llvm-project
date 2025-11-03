@@ -520,22 +520,15 @@ bool RISCVKeysomExpand::expandSRL(MachineBasicBlock &OrigBB,
   // with:
   //
   //   sra   shifted, rs1, rs2
-  //   andi  n, rs2, 0x1F      ; the least-significant 5 bits of rs2
-  //
-  //   addi  one, Zero, 1
-  //   addi  const31, Zero, 31
-  //   addi  count32, Zero, 32
-  //
-  //   sub   t1a, const31, n   ; one less than the desired shift distance (since we'll double t0 later).
-  //
-  //   sll   a, one, t1a       ; 1 << (31 - N)
-  //   add   b, a, a           ; left shift by one more bit (use slli if available).
-  //   addi  c, b, -1          ; t0 = (1 << (32 - N)) - 1
-  //
-  //   sub   t2a, N, const32   ; rs2 - 32Negative if rs2 < 32, positive or zero otherwise.
-  //   srai  t2b, t2a, 31      ; Arithmetic right shift by 31 copies the sign bit into every position.
-  //   and   mask, c, t2b      ; If rs2 < 32  keep the computed mask else zero.
-  //   and   Rd, Shifted, mask ; produce the final result
+  //   andi  rs2masked, rs2, 0x1F       ; only the low 5 bits of rs2 are used.
+  //   sltu  rs2iszero, zero, rs2masked ; rs2iszero = rs2 == 0 ? 0 : 1
+  //   slli  msb, rs2iszero, 31         ; msb = rs2 == 0 ? 0 : 0x80000000
+  //   ; rs2minus = rs2 - 1.
+  //   ; (We can use rs2iszero here: if this is 0, 'msb' is  0.)
+  //   sub   rs2minus, rs2masked, rs2iszero
+  //   sra   maskshifted, msb, rs2minus  ; signed right shift fills top bits
+  //   xori  mask, maskshifted, -1       ; invert for the final mask
+  //   and   rd, shifted, mask           ; rd = shifted & mask
 
   static constexpr auto Zero = RISCV::X0;
   MachineInstr &MI = *MBBI;
@@ -549,21 +542,17 @@ bool RISCVKeysomExpand::expandSRL(MachineBasicBlock &OrigBB,
       MRI, MRI.getRegClass(Rd), OrigBB, MBBI, MI.getDebugLoc(), STI_, TII_};
 
   auto const Shifted = Helper.rvSra(Rs1, Rs2);
-  auto const N = Helper.rvAndi(Rs2, 0b11111); // the least-significant 5 bits of rs2
-
-  auto const One  = Helper.rvAddi(Zero, 1);
-  auto const Const31 = Helper.rvAddi(Zero, 31);
-  auto const Const32 = Helper.rvAddi(Zero, 32);
-
-  auto const T1a = Helper.rvSub(Const31, N); // one less than the desired shift distance (since we'll double it later).
-
-  auto const A = Helper.rvSll(One, T1a);     // 1 << (31 - N)
-  auto const B = Helper.rvAdd(A, A);         // left shift by one more bit (TODO: use slli if available).
-  auto const C = Helper.rvAddi(B, -1);       // t0 = (1 << (32 - N)) - 1
-
-  auto const T2a = Helper.rvSub(N, Const32); // rs2 - 32Negative if rs2 < 32, positive or zero otherwise.
-  auto const T2b = Helper.rvSrai(T2a, 31);   // Arithmetic right shift by 31 copies the sign bit into every position.
-  auto const Mask = Helper.rvAnd(C, T2b);    // If rs2 < 32  keep the computed mask else zero.
+  auto const Rs2Masked =
+      Helper.rvAndi(Rs2, 0b11111); // only the low 5 bits of rs2 are used.
+  auto const Rs2IsZero =
+      Helper.rvSltu(Zero, Rs2Masked); // m0 = rs2 == 0 ? 0 : 1
+  auto const Msb =
+      Helper.rvSlli(Rs2IsZero, 31); // m1 = rs2 == 0 ? 0 : 0x80000000
+  // rs2minus = rs2 - 1. (I can use rs2_is_zero here because if this is 0, 'msb'
+  // is also 0.)
+  auto const Rs2Minus = Helper.rvSub(Rs2Masked, Rs2IsZero);
+  auto const MaskShifted = Helper.rvSra(Msb, Rs2Minus);
+  auto const Mask = Helper.rvXori(MaskShifted, -1); // mask = rs2 == 0 ? ~0 ~m1.
   Helper.rvAnd(Rd, Shifted, Mask);
   MI.eraseFromParent();
   return true;

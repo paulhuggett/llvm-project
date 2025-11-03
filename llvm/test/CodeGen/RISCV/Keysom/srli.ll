@@ -232,16 +232,11 @@ define i32 @h(i32 %x, i32 %y) nounwind {
 ; NOSRL:       # %bb.0: # %entry
 ; NOSRL-NEXT:    sra a0, a0, a1
 ; NOSRL-NEXT:    andi a1, a1, 31
-; NOSRL-NEXT:    addi a2, zero, 1
-; NOSRL-NEXT:    addi a3, zero, 31
-; NOSRL-NEXT:    addi a4, zero, 32
-; NOSRL-NEXT:    sub a3, a3, a1
-; NOSRL-NEXT:    sub a1, a1, a4
-; NOSRL-NEXT:    sll a2, a2, a3
-; NOSRL-NEXT:    add a2, a2, a2
-; NOSRL-NEXT:    addi a2, a2, -1
-; NOSRL-NEXT:    srai a1, a1, 31
-; NOSRL-NEXT:    and a1, a2, a1
+; NOSRL-NEXT:    sltu a2, zero, a1
+; NOSRL-NEXT:    slli a3, a2, 31
+; NOSRL-NEXT:    sub a1, a1, a2
+; NOSRL-NEXT:    sra a1, a3, a1
+; NOSRL-NEXT:    xori a1, a1, -1
 ; NOSRL-NEXT:    and a0, a0, a1
 ; NOSRL-NEXT:    jalr zero, 0(ra)
 ;
@@ -249,17 +244,11 @@ define i32 @h(i32 %x, i32 %y) nounwind {
 ; NOSRL-SRA:       # %bb.0: # %entry
 ; NOSRL-SRA-NEXT:    sra a0, a0, a1
 ; NOSRL-SRA-NEXT:    andi a1, a1, 31
-; NOSRL-SRA-NEXT:    addi a2, zero, 1
-; NOSRL-SRA-NEXT:    addi a3, zero, 31
-; NOSRL-SRA-NEXT:    addi a4, zero, 32
-; NOSRL-SRA-NEXT:    sub a3, a3, a1
-; NOSRL-SRA-NEXT:    sub a1, a1, a4
-; NOSRL-SRA-NEXT:    addi a4, zero, 31
-; NOSRL-SRA-NEXT:    sll a2, a2, a3
-; NOSRL-SRA-NEXT:    add a2, a2, a2
-; NOSRL-SRA-NEXT:    addi a2, a2, -1
-; NOSRL-SRA-NEXT:    sra a1, a1, a4
-; NOSRL-SRA-NEXT:    and a1, a2, a1
+; NOSRL-SRA-NEXT:    sltu a2, zero, a1
+; NOSRL-SRA-NEXT:    slli a3, a2, 31
+; NOSRL-SRA-NEXT:    sub a1, a1, a2
+; NOSRL-SRA-NEXT:    sra a1, a3, a1
+; NOSRL-SRA-NEXT:    xori a1, a1, -1
 ; NOSRL-SRA-NEXT:    and a0, a0, a1
 ; NOSRL-SRA-NEXT:    jalr zero, 0(ra)
 ;
@@ -267,17 +256,12 @@ define i32 @h(i32 %x, i32 %y) nounwind {
 ; NOSRL-SRA-SLLI:       # %bb.0: # %entry
 ; NOSRL-SRA-SLLI-NEXT:    sra a0, a0, a1
 ; NOSRL-SRA-SLLI-NEXT:    andi a1, a1, 31
-; NOSRL-SRA-SLLI-NEXT:    addi a2, zero, 1
-; NOSRL-SRA-SLLI-NEXT:    addi a3, zero, 31
-; NOSRL-SRA-SLLI-NEXT:    addi a4, zero, 32
-; NOSRL-SRA-SLLI-NEXT:    sub a3, a3, a1
-; NOSRL-SRA-SLLI-NEXT:    sub a1, a1, a4
-; NOSRL-SRA-SLLI-NEXT:    addi a4, zero, 31
-; NOSRL-SRA-SLLI-NEXT:    sll a2, a2, a3
-; NOSRL-SRA-SLLI-NEXT:    add a2, a2, a2
-; NOSRL-SRA-SLLI-NEXT:    addi a2, a2, -1
-; NOSRL-SRA-SLLI-NEXT:    sra a1, a1, a4
-; NOSRL-SRA-SLLI-NEXT:    and a1, a2, a1
+; NOSRL-SRA-SLLI-NEXT:    addi a2, zero, 31
+; NOSRL-SRA-SLLI-NEXT:    sltu a3, zero, a1
+; NOSRL-SRA-SLLI-NEXT:    sll a2, a3, a2
+; NOSRL-SRA-SLLI-NEXT:    sub a1, a1, a3
+; NOSRL-SRA-SLLI-NEXT:    sra a1, a2, a1
+; NOSRL-SRA-SLLI-NEXT:    xori a1, a1, -1
 ; NOSRL-SRA-SLLI-NEXT:    and a0, a0, a1
 ; NOSRL-SRA-SLLI-NEXT:    jalr zero, 0(ra)
 
