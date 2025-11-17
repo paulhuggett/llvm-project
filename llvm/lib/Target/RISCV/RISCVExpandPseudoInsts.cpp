@@ -509,14 +509,18 @@ bool RISCVPreRAExpandPseudo::runOnMachineFunction(MachineFunction &MF) {
   STI = &MF.getSubtarget<RISCVSubtarget>();
   TII = STI->getInstrInfo();
 
+#ifndef NDEBUG
   const unsigned OldSize = getInstSizeInBytes(MF);
+#endif
 
   bool Modified = false;
   for (auto &MBB : MF)
     Modified |= expandMBB(MBB);
 
+#ifndef NDEBUG
   const unsigned NewSize = getInstSizeInBytes(MF);
   assert(OldSize >= NewSize);
+#endif
 
   return Modified;
 }
