@@ -1,7 +1,7 @@
 ; RUN: llc -mtriple=riscv32 -riscv-no-aliases < %s \
-; RUN:   | FileCheck -check-prefixes=RV32I,RV32I_k %s
+; RUN:   | FileCheck -check-prefixes=RV32I,RV32I_k,RV32I_g %s
 ; RUN: llc -mtriple=riscv32 -riscv-no-aliases -mattr=+xkeysomnoslli < %s \
-; RUN:   | FileCheck -check-prefixes=RV32I_NO,RV32I_k_NOSLLI %s
+; RUN:   | FileCheck -check-prefixes=RV32I_NO,RV32I_k_NOSLLI,RV32I_g_NOSLLI %s
 
 define i32 @f(i32 %x) nounwind {
 ; RV32I-LABEL: f:
@@ -25,3 +25,17 @@ entry:
   %xor = xor i32 %shl, 4080
   ret i32 %xor
 }
+
+
+define i1 @g(i32 %m10) {
+; RV32I_g-LABEL: g:
+; RV32I_g:        slli {{.+}}, {{.+}}, {{[0-9]+}}
+
+; RV32I_g_NOSLLI-LABEL: g:
+; RV32I_g_NO-NOT: slli {{.+}}, {{.+}}, {{[0-9]+}}
+entry:
+  %and74 = and i32 %m10, 8388607
+  %cmp75 = icmp eq i32 %and74, 0
+  ret i1 %cmp75
+}
+

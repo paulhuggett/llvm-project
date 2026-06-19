@@ -138,6 +138,9 @@ public:
   [[nodiscard]] Register rvSll(Register Rs1, Register Rs2) {
     return this->buildTwoReg(RISCV::SLL, Rs1, Rs2);
   }
+  void rvSll(Register Rd, Register Rs1, Register Rs2) {
+    this->buildTwoReg(RISCV::SLL, Rd, Rs1, Rs2);
+  }
   [[nodiscard]] Register rvSlli(Register Rs1, int64_t ShAmt) {
     assert(ShAmt < (1 << 5) && "immediate value is too large!");
     if (ShAmt == 0) {
@@ -260,6 +263,8 @@ private:
   bool expandMI(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
                 MachineBasicBlock::iterator &NextMBBI);
 
+  bool expandSLLI(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
+                  MachineBasicBlock::iterator &NextMBBI);
   bool expandSLTIU(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
                    MachineBasicBlock::iterator &NextMBBI);
   bool expandSLT(MachineBasicBlock &OrigBB, MachineBasicBlock::iterator MBBI,
@@ -359,6 +364,8 @@ bool RISCVKeysomExpand::expandMI(MachineBasicBlock &MBB,
     return expandBGE(MBB, MBBI, NextMBBI);
   case RISCV::BGEU:
     return expandBGEU(MBB, MBBI, NextMBBI);
+  case RISCV::SLLI:
+    return expandSLLI(MBB, MBBI, NextMBBI);
   case RISCV::SLTU:
   case RISCV::PseudoSLTU:
     return expandSLTU(MBB, MBBI, NextMBBI);
@@ -451,6 +458,30 @@ void RISCVKeysomExpand::mask(InstructionHelper &Helper, Register Out,
     Register FullMask = Helper.rvAddi(UpperImm, -1);
     Helper.rvAnd(Out, In, FullMask);
   }
+}
+
+bool RISCVKeysomExpand::expandSLLI(MachineBasicBlock &OrigBB,
+                                   MachineBasicBlock::iterator MBBI,
+                                   MachineBasicBlock::iterator &NextMBBI) {
+  if (!STI_->hasVendorXKeysomNoSlli()) {
+    return false;
+  }
+
+  MachineInstr &MI = *MBBI;
+  assert(MI.getNumOperands() == 3 && "Expected SLLI to have 3 operands");
+
+  Register Rd = MI.getOperand(0).getReg();
+  Register Rs1 = MI.getOperand(1).getReg();
+  int64_t ShAmt = MI.getOperand(2).getImm();
+
+  MachineRegisterInfo &MRI = OrigBB.getParent()->getRegInfo();
+  InstructionHelper Helper{
+      MRI, MRI.getRegClass(Rd), OrigBB, MBBI, MI.getDebugLoc(), STI_, TII_};
+
+  auto ImmReg = Helper.rvAddi(RISCV::X0, ShAmt);
+  Helper.rvSll(Rd, Rs1, ImmReg);
+  MI.eraseFromParent();
+  return true;
 }
 
 bool RISCVKeysomExpand::expandSRLI(MachineBasicBlock &OrigBB,
