@@ -173,6 +173,9 @@ public:
                          RISCV::SRA, Rd, Rs1, ShAmt);
   }
 
+  void rvSltu(Register Rd, Register Rs1, Register Rs2) {
+    return this->buildTwoReg(RISCV::SLTU, Rd, Rs1, Rs2);
+  }
   [[nodiscard]] Register rvSltu(Register Rs1, Register Rs2) {
     return this->buildTwoReg(RISCV::SLTU, Rs1, Rs2);
   }
@@ -349,6 +352,7 @@ bool RISCVKeysomExpand::expandMI(MachineBasicBlock &MBB,
   LLVM_DEBUG(dbgs() << "  expanding: " << TII_->getName(MBBI->getOpcode())
                     << '\n');
   switch (MBBI->getOpcode()) {
+  case RISCV::SLTIU:
   case RISCV::PseudoSLTIU:
     return expandSLTIU(MBB, MBBI, NextMBBI);
   case RISCV::SLT:
@@ -394,13 +398,13 @@ bool RISCVKeysomExpand::expandMI(MachineBasicBlock &MBB,
 bool RISCVKeysomExpand::expandSLTIU(MachineBasicBlock &OrigBB,
                                     MachineBasicBlock::iterator MBBI,
                                     MachineBasicBlock::iterator &NextMBBI) {
-  if (!IsPreRA_) {
-    assert(false && "Can't expand SLTIU after register allocation");
-    return false;
-  }
+
   if (!STI_->hasVendorXKeysomNoSltiu()) {
     if (MBBI->getOpcode() == RISCV::PseudoSLTIU) {
-      // MachineInstr &MI = *MBBI;
+      if (!IsPreRA_) {
+        assert(false && "Can't expand SLTIU after register allocation");
+        return false;
+      }
       //  Simply swap PseudoSLTIU for real SLTIU.
       BuildMI(OrigBB, MBBI, MBBI->getDebugLoc(), TII_->get(RISCV::SLTIU),
               MBBI->getOperand(0).getReg())
@@ -412,20 +416,10 @@ bool RISCVKeysomExpand::expandSLTIU(MachineBasicBlock &OrigBB,
     return false;
   }
 
-  static constexpr auto Zero = RISCV::X0;
-  MachineFunction *const MF = OrigBB.getParent();
-  assert(MF->getSubtarget<RISCVSubtarget>().hasVendorXKeysomNoSltiu() &&
-         "PseudoSLTIU should only be used when SLTIU is disabled");
-  MachineInstr &MI = *MBBI;
-  assert(MI.getNumOperands() == 3 && "Expected PseudoSLTIU to have 3 operands "
-                                     "(matching the SLTIU instruction)");
-  DebugLoc DL = MI.getDebugLoc();
-
-  Register Rd = MI.getOperand(0).getReg();
-  Register Rs1 = MI.getOperand(1).getReg();
-  const int64_t Imm = MI.getOperand(2).getImm();
-  MachineRegisterInfo &MRI = MF->getRegInfo();
-
+  if (!IsPreRA_) {
+    assert(false && "Can't expand SLTIU after register allocation");
+    return false;
+  }
   // Use "sltu". The replacement is straightforward:
   //
   //      [... previous instrs ...]
@@ -435,11 +429,19 @@ bool RISCVKeysomExpand::expandSLTIU(MachineBasicBlock &OrigBB,
   //
   // If sltu is not available, the next iteration of the outer loop will cause
   // it to be expanded.
-  Register Rs2 = MRI.createVirtualRegister(MRI.getRegClass(Rd));
-  BuildMI(OrigBB, MBBI, DL, TII_->get(RISCV::ADDI), Rs2)
-      .addReg(Zero)
-      .addImm(Imm);
-  BuildMI(OrigBB, MBBI, DL, TII_->get(RISCV::SLTU), Rd).addReg(Rs1).addReg(Rs2);
+  MachineInstr &MI = *MBBI;
+  assert(MI.getNumOperands() == 3 && "Expected SLTIU to have 3 operands");
+
+  Register Rd = MI.getOperand(0).getReg();
+  Register Rs1 = MI.getOperand(1).getReg();
+  const int64_t ShAmt = MI.getOperand(2).getImm();
+
+  MachineRegisterInfo &MRI = OrigBB.getParent()->getRegInfo();
+  InstructionHelper Helper{
+      MRI, MRI.getRegClass(Rd), OrigBB, MBBI, MI.getDebugLoc(), STI_, TII_};
+
+  auto ImmReg = Helper.rvAddi(RISCV::X0, ShAmt);
+  Helper.rvSltu(Rd, Rs1, ImmReg);
   MI.eraseFromParent();
   return true;
 }

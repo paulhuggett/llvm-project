@@ -116,3 +116,55 @@ entry:
   %y = tail call i32 @llvm.umax.i32(i32 %x, i32 1)
   ret i32 %y
 }
+
+
+define i1 @h(i32 %m10) {
+; RV32I-LABEL: h:
+; RV32I:       # %bb.0: # %entry
+; RV32I-NEXT:    slli a0, a0, 9
+; RV32I-NEXT:    sltiu a0, a0, 1
+; RV32I-NEXT:    jalr zero, 0(ra)
+;
+; RV32I_NO_SLTIU-LABEL: h:
+; RV32I_NO_SLTIU:       # %bb.0: # %entry
+; RV32I_NO_SLTIU-NEXT:    slli a0, a0, 9
+; RV32I_NO_SLTIU-NEXT:    addi a1, zero, 1
+; RV32I_NO_SLTIU-NEXT:    sltu a0, a0, a1
+; RV32I_NO_SLTIU-NEXT:    jalr zero, 0(ra)
+;
+; RV32I_NO_SLTIU_SLTU-LABEL: h:
+; RV32I_NO_SLTIU_SLTU:       # %bb.0: # %entry
+; RV32I_NO_SLTIU_SLTU-NEXT:    slli a0, a0, 9
+; RV32I_NO_SLTIU_SLTU-NEXT:    addi a1, zero, 1
+; RV32I_NO_SLTIU_SLTU-NEXT:    bltu a0, a1, .LBB2_2
+; RV32I_NO_SLTIU_SLTU-NEXT:  # %bb.1: # %entry
+; RV32I_NO_SLTIU_SLTU-NEXT:    addi a0, zero, 0
+; RV32I_NO_SLTIU_SLTU-NEXT:    jalr zero, 0(ra)
+; RV32I_NO_SLTIU_SLTU-NEXT:  .LBB2_2: # %entry
+; RV32I_NO_SLTIU_SLTU-NEXT:    addi a0, zero, 1
+; RV32I_NO_SLTIU_SLTU-NEXT:    jalr zero, 0(ra)
+;
+; RV32I_GLISEL_NO_SLTIU-LABEL: h:
+; RV32I_GLISEL_NO_SLTIU:       # %bb.0: # %entry
+; RV32I_GLISEL_NO_SLTIU-NEXT:    slli a0, a0, 9
+; RV32I_GLISEL_NO_SLTIU-NEXT:    addi a1, zero, 1
+; RV32I_GLISEL_NO_SLTIU-NEXT:    sltu a0, a0, a1
+; RV32I_GLISEL_NO_SLTIU-NEXT:    jalr zero, 0(ra)
+;
+; RV32I_GLISEL_NO_SLTIU_NO_SLTU-LABEL: h:
+; RV32I_GLISEL_NO_SLTIU_NO_SLTU:       # %bb.0: # %entry
+; RV32I_GLISEL_NO_SLTIU_NO_SLTU-NEXT:    slli a0, a0, 9
+; RV32I_GLISEL_NO_SLTIU_NO_SLTU-NEXT:    addi a1, zero, 1
+; RV32I_GLISEL_NO_SLTIU_NO_SLTU-NEXT:    bltu a0, a1, .LBB2_2
+; RV32I_GLISEL_NO_SLTIU_NO_SLTU-NEXT:  # %bb.1: # %entry
+; RV32I_GLISEL_NO_SLTIU_NO_SLTU-NEXT:    addi a0, zero, 0
+; RV32I_GLISEL_NO_SLTIU_NO_SLTU-NEXT:    jalr zero, 0(ra)
+; RV32I_GLISEL_NO_SLTIU_NO_SLTU-NEXT:  .LBB2_2: # %entry
+; RV32I_GLISEL_NO_SLTIU_NO_SLTU-NEXT:    addi a0, zero, 1
+; RV32I_GLISEL_NO_SLTIU_NO_SLTU-NEXT:    jalr zero, 0(ra)
+
+entry:
+  %and74 = and i32 %m10, 8388607
+  %cmp75 = icmp eq i32 %and74, 0
+  ret i1 %cmp75
+}
